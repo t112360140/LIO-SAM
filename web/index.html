@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="utf-8">
+    <title>LIO-SAM Offline Monitor</title>
+    <!-- 引入 Three.js -->
+    <script src="./js/three.min.js"></script>
+    <script src="./js/OrbitControls.js"></script>
+    
+    <link href="./css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Three.js 渲染區 -->
+    <div id="canvas-container"></div>
+    
+    <!-- 讀取遮罩 -->
+    <div id="loading" class="loading-toast">處理點雲中...</div>
+
+    <!-- 右側控制面板 -->
+    <div class="control-panel">
+        <h2>📍 LIO-SAM Offline Monitor</h2>
+        
+        <p class="status-text"><strong>狀態：</strong><br><span id="status" style="color: #ffeb3b;">Initializing...</span></p>
+        <p class="status-text"><strong>處理進度：</strong> <span id="msg" style="float: right;">0 / 0</span></p>
+        <div class="progress-bg">
+            <div id="bar" class="progress-bar">0%</div>
+        </div>
+        
+        <div class="resource-panel">
+            <!-- CPU 區塊 -->
+            <div class="resource-header">
+                <span><strong>CPU Usage</strong></span>
+                <span id="cpu-text">0.0%</span>
+            </div>
+            <div class="resource-track">
+                <div id="cpu-bar" class="resource-fill" style="background-color: #2196F3;"></div>
+            </div>
+
+            <!-- RAM 區塊 -->
+            <div class="resource-header">
+                <span><strong>RAM Usage</strong></span>
+                <span id="ram-text">0.0%</span>
+            </div>
+            <div class="resource-track">
+                <div id="ram-bar" class="resource-fill" style="background-color: #9C27B0;"></div>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <div style="margin-bottom: 5px; margin-top: 5px;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="color-checkbox" checked style="width: 16px; height: 16px; cursor: pointer;">
+                    🌈 啟用彩色點雲
+                </label>
+            </div>
+
+            <div style="margin-bottom: 5px; margin-top: 5px;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="loop-checkbox" checked style="width: 16px; height: 16px; cursor: pointer;" onchange="toggleLoopEdges()">
+                    🔗 顯示回環連結
+                </label>
+            </div>
+
+            <!-- 開啟/關閉自動更新軌跡 -->
+            <button class="btn" id="btn-toggle-path" onclick="toggleAutoPath()">⏸️ 暫停自動更新軌跡</button>
+            
+            <!-- 手動拉取最新全局點雲 -->
+            <button class="btn btn-warning" onclick="loadPointCloudPreview()">☁️ 載入/刷新全局點雲</button>
+            
+            <!-- 觸發存檔 -->
+            <button class="btn btn-success" onclick="triggerSave()">💾 儲存最終地圖</button>
+        </div>
+    </div>
+
+    <script src="./js/main.js"></script>
+</body>
+</html>

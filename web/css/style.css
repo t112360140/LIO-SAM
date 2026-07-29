@@ -1,0 +1,173 @@
+body { 
+    margin: 0; 
+    padding: 0; 
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background-color: #111;
+    color: #fff;
+}
+
+#canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+}
+
+.control-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 350px;
+    background: rgba(30, 30, 30, 0.85);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    z-index: 10;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+h2 { 
+    color: #4caf50; 
+    border-bottom: 1px solid #444; 
+    padding-bottom: 10px; 
+    margin-top: 0;
+    font-size: 1.2rem;
+}
+
+.status-text {
+    margin: 10px 0;
+    font-size: 0.9rem;
+}
+
+.progress-bg { 
+    background: rgba(0, 0, 0, 0.5); 
+    border-radius: 6px; 
+    width: 100%; 
+    height: 22px; 
+    margin-top: 10px; 
+    overflow: hidden; 
+    border: 1px solid #444;
+}
+.progress-bar { 
+    background: linear-gradient(90deg, #4caf50, #81c784); 
+    height: 100%; 
+    width: 0%; 
+    transition: width 0.3s ease-out; 
+    text-align: center; 
+    line-height: 22px; 
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #000;
+}
+
+.btn-group {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn { 
+    background: #008cba; 
+    color: white; 
+    padding: 10px; 
+    border: none; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    font-size: 0.95rem; 
+    font-weight: 500;
+    transition: all 0.2s;
+}
+.btn:hover {
+    background: #005f7a;
+    transform: translateY(-1px);
+}
+.btn-success {
+    background: #4caf50;
+}
+.btn-success:hover {
+    background: #388e3c;
+}
+.btn-warning {
+    background: #ff9800;
+}
+.btn-warning:hover {
+    background: #f57c00;
+}
+
+.loading-toast {
+    position: absolute; 
+    top: 20px; 
+    left: 50%; 
+    transform: translateX(-50%);
+    background: rgba(30, 30, 30, 0.85);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 30px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    z-index: 20; 
+    display: none;
+    font-size: 1rem;
+    font-weight: 600;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    animation: pulse 1.5s infinite; /* 呼吸燈動畫 */
+}
+/* 呼吸燈動畫效果 */
+@keyframes pulse {
+    0% { opacity: 1; transform: translateX(-50%) scale(1); }
+    50% { opacity: 0.8; transform: translateX(-50%) scale(0.98); }
+    100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+.resource-panel {
+    margin-top: 15px;
+    margin-bottom: 15px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.resource-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #bbb;
+    margin-bottom: 6px;
+}
+
+.resource-header span:last-child {
+    color: #fff;
+    font-weight: 600;
+    font-family: monospace; /* 讓跳動的數字寬度固定，看起來更整齊 */
+    font-size: 0.95rem;
+}
+
+.resource-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    width: 100%;
+    height: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.resource-track:last-child {
+    margin-bottom: 4px;
+}
+
+.resource-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 6px;
+    /* 讓長度變更與顏色變換都有平滑的過渡動畫 */
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease;
+}
