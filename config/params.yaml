@@ -26,7 +26,7 @@
 
     # Export settings
     savePCD: false                               # https://github.com/TixiaoShan/LIO-SAM/issues/3
-    savePCDDirectory: "/MAP/LOAM/"         # in your home folder, starts and ends with "/". Warning: the code deletes "LOAM" folder then recreates it. See "mapOptimization" for implementation
+    savePCDDirectory: "/MAP/LOAM/"               # in your home folder, starts and ends with "/". Warning: the code deletes "LOAM" folder then recreates it. See "mapOptimization" for implementation
 
     # Sensor Settings
     sensor: velodyne                             # lidar sensor type, either 'velodyne', 'ouster' or 'livox'
@@ -134,7 +134,7 @@
     maxIntensity: 60.0
     minIntensity: 0.0
     publishBagTF: true
-    skipLidarTopic: 3.0     # skip lidar topic before n sec
+    skipLidarTopic: 1.0     # skip lidar topic before n sec
 
 
     saveFullKeyFrame: false
@@ -142,7 +142,7 @@
 
 
     # Point Colorization
-    enableColorization: true
+    enableColorization: false
     useCudaColorization: false  # 並沒有幫助會更慢
     useCompressedImages: true
 
@@ -194,26 +194,26 @@
       - "/lidar_R/velodyne_points"
       - "/lidar_LL/velodyne_points"
       - "/lidar_RR/velodyne_points"
-      - "/lidar_MID/velodyne_points"
+      # - "/lidar_MID/velodyne_points"
     lidarFrames:
       # - "velodyne"
       - "velodyne_L"
       - "velodyne_R"
       - "velodyne_LL"
       - "velodyne_RR"
-      - "velodyne_MID"
+      # - "velodyne_MID"
 
-    lidarSyncDelayWindow: 0.06
+    lidarSyncDelayWindow: 0.03
 
 
     # Static TF (parent, child, x, y, z, roll, pitch, yaw)
     static_tfs:
       # - "parent_link, child_link,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0"
-      - "base_link, velodyne_L,  0.0, -0.15, 0.32,  0.0, 0.0, 0.0"
-      - "base_link, velodyne_R,  0.0, 0.15, 0.32,  0.0, 0.0, 0.0"
-      - "base_link, velodyne_LL,  0.0, -0.51, 0.17,  -0.7853, 0.0, 0.0"
-      - "base_link, velodyne_RR,  0.0, 0.51, 0.17,  0.7853, 0.0, 0.0"
-      - "base_link, velodyne_MID,  0.8, 0.0, 0.17,  0.0, 0.7853, 0.0"
+      - "base_link, velodyne_L,    0.0000,  0.1594, 0.3200,   0.0000,  0.0000,  0.0000"
+      - "base_link, velodyne_R,    0.0576, -0.1594, 0.2921,  -0.0004,  0.0459,  0.0091"
+      - "base_link, velodyne_LL,  -0.0241,  0.8124, 0.0957,  -0.7729,  0.0047,  0.0241"
+      - "base_link, velodyne_RR,  -0.0221, -0.5625, 0.1281,   0.7698,  0.0281,  0.0102"
+      - "base_link, velodyne_MID,  0.6720,  0.2900, 0.0800,  -0.0100,  0.8000,  0.0210"   # 不準?
 
       - "base_link, camera_1,  -0.390,  0.000, 0.340,  -1.5708, 0.000, -1.5708" 
       - "base_link, camera_2,  -0.475,  0.147, 0.340,  -1.5708, 0.000, -0.5236"

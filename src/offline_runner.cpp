@@ -305,7 +305,7 @@ public:
                 );
             });
 
-            RCLCPP_INFO(this->get_logger(), "🌐 Web 監控面板已啟動: http://localhost:8080");
+            RCLCPP_INFO(this->get_logger(), "🌐 Web 監控面板已啟動: http://0.0.0.0:8080");
             http_server_.listen("0.0.0.0", 8080);
         });
     }

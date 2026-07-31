@@ -27,6 +27,7 @@ private:
     std::mutex mtx;
     std::vector<std::deque<ImageFrame>> image_caches_;
     std::vector<image_geometry::PinholeCameraModel> camera_models_;
+    std::vector<sensor_msgs::msg::CameraInfo> camera_infos_;
     std::vector<bool> maps_initialized_;
     
     // CPU 去畸變 Map
@@ -34,6 +35,7 @@ private:
     std::vector<cv::Mat> map_y_;
 
     std::vector<rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr> rect_image_pubs_;
+    std::vector<rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr> camera_info_pubs_;
     std::vector<rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr> fov_marker_pubs_;
     
     const int MAX_POINTS = 300000*10;
@@ -65,6 +67,7 @@ public:
         int num_cams = imageTopics.size();
         image_caches_.resize(num_cams);
         camera_models_.resize(num_cams);
+        camera_infos_.resize(num_cams);
         maps_initialized_.resize(num_cams, false);
         
         map_x_.resize(num_cams);
@@ -72,10 +75,13 @@ public:
 
         for (int i = 0; i < num_cams; ++i) {
             rect_image_pubs_.push_back(
-                this->create_publisher<sensor_msgs::msg::Image>("lio_sam/image/camera_" + std::to_string(i), 1)
+                this->create_publisher<sensor_msgs::msg::Image>("lio_sam/image/camera_" + std::to_string(i) + "/image", 1)
+            );
+            camera_info_pubs_.push_back(
+                this->create_publisher<sensor_msgs::msg::CameraInfo>("lio_sam/image/camera_" + std::to_string(i) + "/camera_info", 1)
             );
             fov_marker_pubs_.push_back(
-                this->create_publisher<visualization_msgs::msg::Marker>("lio_sam/marker/camera_fov_" + std::to_string(i), 1)
+                this->create_publisher<visualization_msgs::msg::Marker>("lio_sam/marker/camera_" + std::to_string(i) + "/fov", 1)
             );
         }
         
@@ -156,6 +162,7 @@ public:
         
         // 只有第一次收到時會去初始化畸變映射表
         if (!maps_initialized_[cam_idx]) {
+            camera_infos_[cam_idx] = *infoMsg;
             camera_models_[cam_idx].fromCameraInfo(infoMsg);
             cv::initUndistortRectifyMap(
                 camera_models_[cam_idx].intrinsicMatrix(), camera_models_[cam_idx].distortionCoeffs(),
@@ -336,6 +343,10 @@ private:
                     cv_bridge::CvImage(best_images[c].header, encoding, rect_images[c]).toImageMsg(*rect_msg);
                     rect_image_pubs_[c]->publish(std::move(rect_msg));
                 }
+                if (camera_info_pubs_[c]->get_subscription_count() > 0) {
+                    camera_infos_[c].header = best_images[c].header;
+                    camera_info_pubs_[c]->publish(camera_infos_[c]);
+                }
                 genCamViewMarker(c, camera_models_[c], best_images[c].header);
             }
         }
@@ -442,6 +453,10 @@ private:
                 std::string encoding = (channels == 4) ? "bgra8" : "bgr8";
                 cv_bridge::CvImage(best_images[c].header, encoding, rect_image).toImageMsg(*rect_msg);
                 rect_image_pubs_[c]->publish(std::move(rect_msg));
+            }
+            if (camera_info_pubs_[c]->get_subscription_count() > 0) {
+                camera_infos_[c].header = best_images[c].header;
+                camera_info_pubs_[c]->publish(camera_infos_[c]);
             }
             genCamViewMarker(c, camera_models_[c], best_images[c].header);
 

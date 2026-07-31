@@ -5,7 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded: ~
       Splitter Ratio: 0.5029411911964417
-    Tree Height: 328
+    Tree Height: 307
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -48,7 +48,17 @@ Visualization Manager:
         All Enabled: true
         base_link:
           Value: true
-        camera_link:
+        camera_1:
+          Value: true
+        camera_2:
+          Value: true
+        camera_3:
+          Value: true
+        camera_4:
+          Value: true
+        camera_5:
+          Value: true
+        camera_6:
           Value: true
         chassis_link:
           Value: true
@@ -64,7 +74,15 @@ Visualization Manager:
           Value: true
         odom:
           Value: true
-        velodyne:
+        velodyne_L:
+          Value: true
+        velodyne_LL:
+          Value: true
+        velodyne_MID:
+          Value: true
+        velodyne_R:
+          Value: true
+        velodyne_RR:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -75,7 +93,17 @@ Visualization Manager:
         map:
           odom:
             base_link:
-              camera_link:
+              camera_1:
+                {}
+              camera_2:
+                {}
+              camera_3:
+                {}
+              camera_4:
+                {}
+              camera_5:
+                {}
+              camera_6:
                 {}
               chassis_link:
                 imu_link:
@@ -83,7 +111,15 @@ Visualization Manager:
                     {}
                 navsat_link:
                   {}
-              velodyne:
+              velodyne_L:
+                {}
+              velodyne_LL:
+                {}
+              velodyne_MID:
+                {}
+              velodyne_R:
+                {}
+              velodyne_RR:
                 {}
             lidar_link:
               {}
@@ -110,7 +146,7 @@ Visualization Manager:
       Name: Global Points
       Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 2
+      Size (Pixels): 3
       Size (m): 0.009999999776482582
       Style: Points
       Topic:
@@ -144,7 +180,7 @@ Visualization Manager:
       Name: Realtime Points
       Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 2
+      Size (Pixels): 3
       Size (m): 0.009999999776482582
       Style: Points
       Topic:
@@ -204,20 +240,34 @@ Visualization Manager:
       Name: Path
     - Class: rviz_common/Group
       Displays:
-        - Class: rviz_default_plugins/Image
+        - Class: rviz_default_plugins/Camera
           Enabled: true
-          Max Value: 1
-          Median window: 5
-          Min Value: 0
+          Far Plane Distance: 100
+          Image Rendering: background and overlay
           Name: Camera 0
-          Normalize Range: true
+          Overlay Alpha: 0.5
           Topic:
             Depth: 5
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
-            Value: /lio_sam/image/camera_0
+            Value: /lio_sam/image/camera_0/image
           Value: true
+          Visibility:
+            Camera 0:
+              Camera 0: true
+              Marker: false
+              Value: true
+            Global Points: true
+            Grid: false
+            Path:
+              MarkerArray: true
+              Path: true
+              Value: true
+            Realtime Points: true
+            TF: false
+            Value: true
+          Zoom Factor: 1
         - Class: rviz_default_plugins/Marker
           Enabled: true
           Name: Marker
@@ -229,7 +279,7 @@ Visualization Manager:
             Filter size: 10
             History Policy: Keep Last
             Reliability Policy: Reliable
-            Value: /lio_sam/marker/camera_fov_0
+            Value: /lio_sam/marker/camera_0/fov
           Value: true
       Enabled: true
       Name: Camera 0
@@ -307,7 +357,7 @@ Window Geometry:
   Height: 706
   Hide Left Dock: false
   Hide Right Dock: true
-  QMainWindow State: 000000ff00000000fd0000000400000000000001560000026cfc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b00000183000000c700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000001000430061006d0065007200610020003001000001c4000000e30000002800ffffff000000010000010f0000026cfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003b0000026c000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d00650100000000000004500000000000000000000002fa0000026c00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001790000026cfc020000000afb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b0000016e000000c700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000001000430061006d00650072006100200030010000014e0000009d0000000000000000fb0000001000430061006d0065007200610020003001000001af000000f80000002800ffffff000000010000010f0000026cfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003b0000026c000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d00650100000000000004500000000000000000000002d70000026c00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Tool Properties:
