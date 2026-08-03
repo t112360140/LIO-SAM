@@ -270,13 +270,17 @@ async function loadPointCloudPreview() {
         const arrayBuffer = await response.arrayBuffer();
         const floatArray = new Float32Array(arrayBuffer);
         
-        // 建立 6-Float 交錯緩衝 (x, y, z, r, g, b)
-        const interleavedBuffer = new THREE.InterleavedBuffer(floatArray, 6);
+        // 建立交錯緩衝 (x, y, z, r, g, b)
+        const interleavedFloat32 = new THREE.InterleavedBuffer(new Float32Array(arrayBuffer), 4);  // 16 bytes = 4 個 float
+        const interleavedUint8 = new THREE.InterleavedBuffer(new Uint8Array(arrayBuffer), 16);     // 16 bytes = 16 個 uint8
+
         const geometry = new THREE.BufferGeometry();
-        
-        // Offset 0 放 xyz, Offset 3 放 rgb
-        geometry.setAttribute('position', new THREE.InterleavedBufferAttribute(interleavedBuffer, 3, 0));
-        geometry.setAttribute('color', new THREE.InterleavedBufferAttribute(interleavedBuffer, 3, 3));
+
+        // xyz 從偏移 0 開始讀 3 個 float
+        geometry.setAttribute('position', new THREE.InterleavedBufferAttribute(interleavedFloat32, 3, 0));
+
+        // rgb 從偏移 12 開始讀 3 個 uint8 (第四個參數 true 會告訴 WebGL 自動將 0-255 map 到 0.0-1.0)
+        geometry.setAttribute('color', new THREE.InterleavedBufferAttribute(interleavedUint8, 3, 12, true));
         
         const material = new THREE.PointsMaterial({
             size: 0.5, // 點的大小

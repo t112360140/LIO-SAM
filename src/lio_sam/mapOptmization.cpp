@@ -2211,16 +2211,20 @@ public:
 
     
 #ifdef OFFLINE_MODE
-    void getPseudoColor(float value, float vmin, float vmax, float& r, float& g, float& b) {
+    struct PointXYZRGBA {
+        float x, y, z;
+        uint8_t r, g, b, a;
+    };
+    void getPseudoColor(float value, float vmin, float vmax, uint8_t& r, uint8_t& g, uint8_t& b) {
         float c = std::max(0.0f, std::min(1.0f, (value - vmin) / (vmax - vmin)));
         
-        r = std::max(0.0f, std::min(1.0f, 1.5f - std::abs(4.0f * c - 3.0f)));
-        g = std::max(0.0f, std::min(1.0f, 1.5f - std::abs(4.0f * c - 2.0f)));
-        b = std::max(0.0f, std::min(1.0f, 1.5f - std::abs(4.0f * c - 1.0f)));
+        r = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, 1.5f - std::abs(4.0f * c - 3.0f))) * 255.0f);
+        g = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, 1.5f - std::abs(4.0f * c - 2.0f))) * 255.0f);
+        b = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, 1.5f - std::abs(4.0f * c - 1.0f))) * 255.0f);
     }
-    std::vector<float> globalMapToArray(bool requestColor = true)
+    std::vector<PointXYZRGBA> globalMapToArray(bool requestColor = true)
     {
-        std::vector<float> buffer;
+        std::vector<PointXYZRGBA> buffer;
 
         if (cloudKeyPoses3D->points.empty() == true)
             return buffer;
@@ -2285,26 +2289,21 @@ public:
         buffer.reserve(globalMapKeyFramesDS->size() * 6);
 
         for (const auto& pt : globalMapKeyFramesDS->points) {
-            buffer.push_back(pt.x);
-            buffer.push_back(pt.y);
-            buffer.push_back(pt.z);
-            
-            if (useColor) {
-                buffer.push_back(pt.r / 255.0f);
-                buffer.push_back(pt.g / 255.0f);
-                buffer.push_back(pt.b / 255.0f);
-            } else {
-                float r, g, b;
-                getPseudoColor(pt.intensity, minIntensity, maxIntensity, r, g, b);
-                
-                // 小提示：如果之後想改用 Z 軸高度來漸層上色，
-                // 只要改成 getPseudoColor(pt.z, -5.0f, 15.0f, r, g, b); 即可，視覺效果也會極好！
-                
-                buffer.push_back(r);
-                buffer.push_back(g);
-                buffer.push_back(b);
-            }
+        PointXYZRGBA p;
+        p.x = pt.x;
+        p.y = pt.y;
+        p.z = pt.z;
+        p.a = 255;
+        
+        if (useColor) {
+            p.r = pt.r;
+            p.g = pt.g;
+            p.b = pt.b;
+        } else {
+            getPseudoColor(pt.intensity, minIntensity, maxIntensity, p.r, p.g, p.b);
         }
+        buffer.push_back(p);
+    }
 
         return buffer;
     }

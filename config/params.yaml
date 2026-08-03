@@ -149,7 +149,7 @@
     lidarColorMaxRange: 50.0
 
     cameraDelay: -0.07
-    cameraSyncDelayWindow: 0.06
+    cameraSyncDelayWindow: 0.0
 
     imageTopics:
       # - "/usb_cam_1/image_raw/compressed"

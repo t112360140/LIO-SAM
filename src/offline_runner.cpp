@@ -296,11 +296,11 @@ public:
                 if (req.has_param("color"))
                     color_req = (req.get_param_value("color") == "true");
                 
-                std::vector<float> cloud_data = this->MO->globalMapToArray(color_req);
+                auto cloud_data = this->MO->globalMapToArray(color_req);
                 
                 res.set_content(
                     reinterpret_cast<const char*>(cloud_data.data()), 
-                    cloud_data.size() * sizeof(float), 
+                    cloud_data.size() * sizeof(cloud_data), 
                     "application/octet-stream"
                 );
             });
