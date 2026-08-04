@@ -469,6 +469,46 @@ public:
         saveMap();
     }
 
+    template <typename PointT>
+    void saveChunkedPCD(const typename pcl::PointCloud<PointT>::Ptr& cloud, const std::string& baseFilePath)
+    {
+        if (cloud->empty()) return;
+
+        if (chuckSize <= 0.0) {
+            std::string finalPath = baseFilePath + ".pcd";
+            pcl::io::savePCDFileBinary(finalPath, *cloud);
+            cout << "Saved complete map to: " << finalPath << endl;
+        } 
+        else {
+            std::string chunkDirectory = baseFilePath + "_chunks";
+            int unused_dir = system((std::string("mkdir -p ") + chunkDirectory).c_str());
+            (void)unused_dir;
+
+            // 使用 std::map 分類點雲，Key 為 "X_Y"
+            std::map<std::string, typename pcl::PointCloud<PointT>::Ptr> cloud_chunks;
+
+            for (const auto& pt : cloud->points) {
+                int chunk_x = std::floor(pt.x / chuckSize);
+                int chunk_y = std::floor(pt.y / chuckSize);
+                
+                std::string key = std::to_string(chunk_x) + "_" + std::to_string(chunk_y);
+
+                if (cloud_chunks.find(key) == cloud_chunks.end()) {
+                    cloud_chunks[key].reset(new pcl::PointCloud<PointT>());
+                }
+                cloud_chunks[key]->push_back(pt);
+            }
+
+            int chunk_count = 0;
+            for (auto const& [key, chunk_cloud] : cloud_chunks) {
+                std::string chunk_filename = chunkDirectory + "/" + key + ".pcd";
+                pcl::io::savePCDFileBinary(chunk_filename, *chunk_cloud);
+                chunk_count++;
+            }
+            std::cout << "[Map Chunking] 切塊大小: " << chuckSize << "m, 共切割為 " 
+                 << chunk_count << " 塊，存於: " << chunkDirectory << std::endl;
+        }
+    }
     void saveMap()
     {
         cout << "****************************************************" << endl;
@@ -521,7 +561,7 @@ public:
             *monoGlobalCloud += *monoCornerCloud;
             *monoGlobalCloud += *monoSurfCloud;
         }
-        pcl::io::savePCDFileBinary(saveMapDirectory + "/GlobalMap.pcd", *monoGlobalCloud);
+        saveChunkedPCD<pcl::PointXYZI>(monoGlobalCloud, saveMapDirectory + "/GlobalMap");
 
 
         auto filterInvalidColor = [](pcl::PointCloud<PointType>::Ptr cloudIn) {
@@ -544,9 +584,9 @@ public:
             if(mappingCornerLeafSize != 0) {
                 pcl::PointCloud<PointType>::Ptr colorGlobalDS(new pcl::PointCloud<PointType>());
                 customVoxelGridColor(colorGlobalCloud, colorGlobalDS, mappingCornerLeafSize);
-                pcl::io::savePCDFileBinary(saveMapDirectory + "/GlobalMap_Color.pcd", *colorGlobalDS);
+                saveChunkedPCD<PointType>(colorGlobalDS, saveMapDirectory + "/GlobalMap_Color");
             } else {
-                pcl::io::savePCDFileBinary(saveMapDirectory + "/GlobalMap_Color.pcd", *colorGlobalCloud);
+                saveChunkedPCD<PointType>(colorGlobalCloud, saveMapDirectory + "/GlobalMap_Color");
             }
             cout << "[Auto-Detect] 彩色資訊已偵測。已額外輸出 GlobalMap_Color.pcd" << endl;
         } else {
