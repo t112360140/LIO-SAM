@@ -26,6 +26,39 @@ using symbol_shorthand::B; // Bias  (ax,ay,az,gx,gy,gz)
 using symbol_shorthand::G; // GPS pose
 
 
+template <typename PointT>
+struct PointCloudAdaptor
+{
+    const pcl::PointCloud<PointT>& pcl_cloud;
+
+    PointCloudAdaptor(const pcl::PointCloud<PointT>& cloud) : pcl_cloud(cloud) {}
+
+    // nanoflann 介面要求：回傳點的總數量
+    inline size_t kdtree_get_point_count() const {
+        return pcl_cloud.points.size();
+    }
+
+    // nanoflann 介面要求：取得某個點的某個維度 (0=x, 1=y, 2=z)
+    inline float kdtree_get_pt(const size_t idx, const size_t dim) const {
+        if (dim == 0) return pcl_cloud.points[idx].x;
+        else if (dim == 1) return pcl_cloud.points[idx].y;
+        else return pcl_cloud.points[idx].z;
+    }
+
+    // nanoflann 介面要求：是否提供預先算好的 Bounding Box (這裡回傳 false 讓它自己算)
+    template <class BBOX>
+    bool kdtree_get_bbox(BBOX& /*bb*/) const {
+        return false;
+    }
+};
+
+typedef nanoflann::KDTreeSingleIndexAdaptor<
+    nanoflann::L2_Simple_Adaptor<float, PointCloudAdaptor<PointType>>,
+    PointCloudAdaptor<PointType>,
+    3 /* 維度 */
+> NanoflannKdTree;
+
+
 class mapOptimization : public ParamServer
 {
 
@@ -109,8 +142,14 @@ public:
     pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMapDS;
     pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMapDS;
 
-    pcl::KdTreeFLANN<PointType>::Ptr kdtreeCornerFromMap;
-    pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurfFromMap;
+    // pcl::KdTreeFLANN<PointType>::Ptr kdtreeCornerFromMap;
+    // pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurfFromMap;
+
+    std::shared_ptr<PointCloudAdaptor<PointType>> cornerAdaptor;
+    std::shared_ptr<NanoflannKdTree> nanoflannCornerTree;
+
+    std::shared_ptr<PointCloudAdaptor<PointType>> surfAdaptor;
+    std::shared_ptr<NanoflannKdTree> nanoflannSurfTree;
 
     pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurroundingKeyPoses;
     pcl::KdTreeFLANN<PointType>::Ptr kdtreeHistoryKeyPoses;
@@ -330,8 +369,8 @@ public:
         laserCloudCornerFromMapDS.reset(new pcl::PointCloud<PointType>());
         laserCloudSurfFromMapDS.reset(new pcl::PointCloud<PointType>());
 
-        kdtreeCornerFromMap.reset(new pcl::KdTreeFLANN<PointType>());
-        kdtreeSurfFromMap.reset(new pcl::KdTreeFLANN<PointType>());
+        // kdtreeCornerFromMap.reset(new pcl::KdTreeFLANN<PointType>());
+        // kdtreeSurfFromMap.reset(new pcl::KdTreeFLANN<PointType>());
 
         for (int i = 0; i < 6; ++i){
             transformTobeMapped[i] = 0;
@@ -1395,7 +1434,20 @@ public:
 
             pointOri = laserCloudCornerLastDS->points[i];
             pointAssociateToMap(&pointOri, &pointSel);
-            kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+            // kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+
+            float query_pt[3] = {pointSel.x, pointSel.y, pointSel.z};
+            std::vector<size_t> ret_index(5);
+            std::vector<float> out_dist_sqr(5);
+
+            size_t num_results = nanoflannCornerTree->knnSearch(&query_pt[0], 5, &ret_index[0], &out_dist_sqr[0]);
+
+            pointSearchInd.resize(num_results);
+            pointSearchSqDis.resize(num_results);
+            for(size_t j=0; j<num_results; j++){
+                pointSearchInd[j] = ret_index[j];
+                pointSearchSqDis[j] = out_dist_sqr[j];
+            }
 
             cv::Mat matA1(3, 3, CV_32F, cv::Scalar::all(0));
             cv::Mat matD1(1, 3, CV_32F, cv::Scalar::all(0));
@@ -1487,7 +1539,20 @@ public:
 
             pointOri = laserCloudSurfLastDS->points[i];
             pointAssociateToMap(&pointOri, &pointSel); 
-            kdtreeSurfFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+            // kdtreeSurfFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+
+            float query_pt[3] = {pointSel.x, pointSel.y, pointSel.z};
+            std::vector<size_t> ret_index(5);
+            std::vector<float> out_dist_sqr(5);
+
+            size_t num_results = nanoflannSurfTree->knnSearch(&query_pt[0], 5, &ret_index[0], &out_dist_sqr[0]);
+
+            pointSearchInd.resize(num_results);
+            pointSearchSqDis.resize(num_results);
+            for(size_t j=0; j<num_results; j++){
+                pointSearchInd[j] = ret_index[j];
+                pointSearchSqDis[j] = out_dist_sqr[j];
+            }
 
             Eigen::Matrix<float, 5, 3> matA0;
             Eigen::Matrix<float, 5, 1> matB0;
@@ -1698,8 +1763,15 @@ public:
 
         if (laserCloudCornerLastDSNum > edgeFeatureMinValidNum && laserCloudSurfLastDSNum > surfFeatureMinValidNum)
         {
-            kdtreeCornerFromMap->setInputCloud(laserCloudCornerFromMapDS);
-            kdtreeSurfFromMap->setInputCloud(laserCloudSurfFromMapDS);
+            // kdtreeCornerFromMap->setInputCloud(laserCloudCornerFromMapDS);
+            // kdtreeSurfFromMap->setInputCloud(laserCloudSurfFromMapDS);
+
+            cornerAdaptor = std::make_shared<PointCloudAdaptor<PointType>>(*laserCloudCornerFromMapDS);
+            nanoflannCornerTree = std::make_shared<NanoflannKdTree>(3, *cornerAdaptor, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+            nanoflannCornerTree->buildIndex();
+            surfAdaptor = std::make_shared<PointCloudAdaptor<PointType>>(*laserCloudSurfFromMapDS);
+            nanoflannSurfTree = std::make_shared<NanoflannKdTree>(3, *surfAdaptor, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+            nanoflannSurfTree->buildIndex();
 
             for (int iterCount = 0; iterCount < 30; iterCount++)
             {

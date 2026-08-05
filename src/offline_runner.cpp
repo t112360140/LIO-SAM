@@ -25,6 +25,16 @@
 
 #include "lib/safeQueue.cpp"
 
+struct ParsedBagMessage {
+    std::string topic_name;
+    double time_stamp;
+    
+    sensor_msgs::msg::Imu::SharedPtr imu_msg;
+    sensor_msgs::msg::PointCloud2::SharedPtr pc_msg;
+    tf2_msgs::msg::TFMessage::SharedPtr tf_msg;
+    std_msgs::msg::Header::SharedPtr header_msg;
+};
+
 class OfflineRunner : public ParamServer {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
