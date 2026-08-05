@@ -219,7 +219,7 @@ async function updateLoopEdges() {
 
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(floatVertices, 3));
-        const material = new THREE.LineBasicMaterial({ color: 0x00bfff, linewidth: 2 });
+        const material = new THREE.LineBasicMaterial({ color: 0x00bfff, linewidth: 3 });
         
         if (currentLoopLines) {
             scene.remove(currentLoopLines);

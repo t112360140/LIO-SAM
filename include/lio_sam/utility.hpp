@@ -226,6 +226,7 @@ public:
     bool savePCD;
     string savePCDDirectory;
     double chuckSize;
+    bool splitZ;
 
     // Lidar Sensor Configuration
     SensorType sensor = SensorType::OUSTER;
@@ -353,6 +354,8 @@ public:
         get_parameter("savePCDDirectory", savePCDDirectory);
         declare_parameter("chuckSize", -1.0);
         get_parameter("chuckSize", chuckSize);
+        declare_parameter("splitZ", true);
+        get_parameter("splitZ", splitZ);
 
         std::string sensorStr;
         declare_parameter("sensor", "ouster");

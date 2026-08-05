@@ -151,16 +151,16 @@ public:
         cornerCloud->clear();
         surfaceCloud->clear();
 
-        pcl::PointCloud<PointType>::Ptr surfaceCloudScan(new pcl::PointCloud<PointType>());
-        pcl::PointCloud<PointType>::Ptr surfaceCloudScanDS(new pcl::PointCloud<PointType>());
-
+        // 啟動 OpenMP 多執行緒平行處理，使用設定檔中的 numberOfCores
+        #pragma omp parallel for num_threads(numberOfCores)
         for (int i = 0; i < N_SCAN; i++)
         {
-            surfaceCloudScan->clear();
+            pcl::PointCloud<PointType>::Ptr localCornerCloudScan(new pcl::PointCloud<PointType>());
+            pcl::PointCloud<PointType>::Ptr localSurfaceCloudScan(new pcl::PointCloud<PointType>());
+            pcl::PointCloud<PointType>::Ptr localSurfaceCloudScanDS(new pcl::PointCloud<PointType>());
 
             for (int j = 0; j < 6; j++)
             {
-
                 int sp = (cloudInfo.start_ring_index[i] * (6 - j) + cloudInfo.end_ring_index[i] * j) / 6;
                 int ep = (cloudInfo.start_ring_index[i] * (5 - j) + cloudInfo.end_ring_index[i] * (j + 1)) / 6 - 1;
 
@@ -178,7 +178,7 @@ public:
                         largestPickedNum++;
                         if (largestPickedNum <= 20){
                             cloudLabel[ind] = 1;
-                            cornerCloud->push_back(extractedCloud->points[ind]);
+                            localCornerCloudScan->push_back(extractedCloud->points[ind]);
                         } else {
                             break;
                         }
@@ -230,15 +230,18 @@ public:
                 for (int k = sp; k <= ep; k++)
                 {
                     if (cloudLabel[k] <= 0){
-                        surfaceCloudScan->push_back(extractedCloud->points[k]);
+                        localSurfaceCloudScan->push_back(extractedCloud->points[k]);
                     }
                 }
             }
 
-            surfaceCloudScanDS->clear();
-            customVoxelGridColor(surfaceCloudScan, surfaceCloudScanDS, odometrySurfLeafSize);
+            customVoxelGridColor(localSurfaceCloudScan, localSurfaceCloudScanDS, odometrySurfLeafSize);
 
-            *surfaceCloud += *surfaceCloudScanDS;
+            #pragma omp critical
+            {
+                *cornerCloud += *localCornerCloudScan;
+                *surfaceCloud += *localSurfaceCloudScanDS;
+            }
         }
     }
 

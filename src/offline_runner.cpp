@@ -23,6 +23,8 @@
 #include "point_colorizer/pointColorization.cpp"
 #include "imu_tools/complementary_filter.h"
 
+#include "lib/safeQueue.cpp"
+
 class OfflineRunner : public ParamServer {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -142,7 +144,7 @@ public:
                 FEs[i]->laserCloudInfoHandler(msg); 
             });
 
-            FEs[i]->setCloudInfoCallback([this, i](const lio_sam::msg::CloudInfo::SharedPtr msg) { 
+            FEs[i]->setCloudInfoCallback([this, i](const lio_sam::msg::CloudInfo::SharedPtr msg) {
                 this->syncAndMergeHandler(msg, i);
             });
         }
@@ -155,8 +157,10 @@ public:
 
         TF = std::make_shared<TransformFusion>(options);
         TF->lidarFrame = baselinkFrame;
+        TF->tf_buffer_ = this->tf_buffer_;
 
         MO = std::make_shared<mapOptimization>(options);
+        MO->tf_buffer_ = this->tf_buffer_;
         
         int max_feature_size = N_SCAN * Horizon_SCAN * num_lidars;
         MO->laserCloudOriCornerVec.resize(max_feature_size);
@@ -348,6 +352,8 @@ private:
 
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
+    SafeQueue<std::shared_ptr<rosbag2_storage::SerializedBagMessage>> bag_queue_{200};
+
     void publishStatus(string status) {
         if (pubDebugStatus->get_subscription_count() == 0)
             return;
@@ -480,6 +486,7 @@ private:
         pcl::PointCloud<PointType>::Ptr surfMerge(new pcl::PointCloud<PointType>());
         pcl::PointCloud<PointType>::Ptr deskewedMerge(new pcl::PointCloud<PointType>());
 
+        #pragma omp parallel for num_threads(num_lidars)
         for (int i = 0; i < num_lidars; i++) {
             if (cloudsBuffer[i] == nullptr) continue;
 
@@ -501,9 +508,12 @@ private:
                 pcl::transformPointCloud(*tempSurf, *tempSurf, T);
                 pcl::transformPointCloud(*tempDeskewed, *tempDeskewed, T);
 
-                *cornerMerge += *tempCorner;
-                *surfMerge += *tempSurf;
-                *deskewedMerge += *tempDeskewed;
+                #pragma omp critical
+                {
+                    *cornerMerge += *tempCorner;
+                    *surfMerge += *tempSurf;
+                    *deskewedMerge += *tempDeskewed;
+                }
             } catch (const tf2::TransformException & ex) {
                 RCLCPP_WARN(this->get_logger(), "找不到 TF: %s", ex.what());
             }
@@ -531,189 +541,205 @@ private:
         uint64_t total_messages = metadata.message_count;
         uint64_t processed_messages = 0;
         uint64_t first_msg_time = 0;
-        static double last_print_time = 0.0;
-        
-        double last_loop_closure_time = 0.0;
 
         if (total_messages <= 0)  {
-            RCLCPP_ERROR(this->get_logger(), 
-                            "\033[1;31m[BAG ERROR]\033[0m MSG 數量不足! 停止運行");
+            RCLCPP_ERROR(this->get_logger(), "\033[1;31m[BAG ERROR]\033[0m MSG 數量不足! 停止運行");
             updateStatus("[ERROR] MSG 數量不足! 停止運行");
             return;
         }
 
-        rclcpp::Serialization<sensor_msgs::msg::Imu> imu_ser;
-        rclcpp::Serialization<sensor_msgs::msg::PointCloud2> pc_ser;
-        rclcpp::Serialization<std_msgs::msg::Header> header_ser;
-        
-        rclcpp::Serialization<sensor_msgs::msg::Image> img_ser;
-        rclcpp::Serialization<sensor_msgs::msg::CompressedImage> comp_img_ser;
-        rclcpp::Serialization<sensor_msgs::msg::CameraInfo> info_ser;
-        rclcpp::Serialization<tf2_msgs::msg::TFMessage> tf_ser;
-
         RCLCPP_INFO(this->get_logger(), "開始全速處理 Bag: %s", bag_path.c_str());
         updateStatus("[INFO] 開始處理!");
-
         auto start_wall_time = std::chrono::steady_clock::now();
 
-        while (reader.has_next() && rclcpp::ok()) {
-            auto bag_message = reader.read_next();
-            rclcpp::SerializedMessage serialized_msg(*bag_message->serialized_data);
-            
-            double current_bag_time = bag_message->time_stamp / 1e9;
+        // ==========================================
+        // 專門負責解碼與 SLAM 運算
+        // ==========================================
+        std::thread compute_thread([&]() {
+            double last_print_time = 0.0;
+            double last_loop_closure_time = 0.0;
 
-            if (first_msg_time == 0) {
-                first_msg_time = bag_message->time_stamp;
-                last_loop_closure_time = current_bag_time;
-            }
+            rclcpp::Serialization<sensor_msgs::msg::Imu> imu_ser;
+            rclcpp::Serialization<sensor_msgs::msg::PointCloud2> pc_ser;
+            rclcpp::Serialization<std_msgs::msg::Header> header_ser;
+            rclcpp::Serialization<sensor_msgs::msg::Image> img_ser;
+            rclcpp::Serialization<sensor_msgs::msg::CompressedImage> comp_img_ser;
+            rclcpp::Serialization<sensor_msgs::msg::CameraInfo> info_ser;
+            rclcpp::Serialization<tf2_msgs::msg::TFMessage> tf_ser;
 
-
-            processed_messages++;
-
-            current_msg_count = processed_messages;
-            total_msg_count = total_messages;
-            double progress = total_messages > 0 ? (double)processed_messages / total_messages * 100.0 : 0.0;
-            current_progress = progress;
-
-            if (processed_messages % 500 == 0 || processed_messages == total_messages) {
-                auto current_wall_time = std::chrono::steady_clock::now();
-                double wall_elapsed = std::chrono::duration<double>(current_wall_time - start_wall_time).count();
-                double bag_elapsed = (bag_message->time_stamp - first_msg_time) / 1e9; 
-                double rtf = wall_elapsed > 0.0 ? bag_elapsed / wall_elapsed : 0.0;
+            while (rclcpp::ok()) {
+                std::shared_ptr<rosbag2_storage::SerializedBagMessage> bag_message;
                 
-                if (wall_elapsed - last_print_time >= logInterval || processed_messages == total_messages) {
-                    last_print_time = wall_elapsed;
+                // 從佇列拿出資料。若佇列空了，會在這裡睡覺等待
+                bag_queue_.pop(bag_message);
 
-                    RCLCPP_INFO(this->get_logger(), "\n[處理進度] %.1f%% (%lu/%lu) | 現實耗時: %.1fs | Bag推進: %.1fs | 倍率: %.2f x", 
-                                progress, processed_messages, total_messages, wall_elapsed, bag_elapsed, rtf);
-                }
-                
-                char buffer[256];
-                std::snprintf(buffer, sizeof(buffer), 
-                                "[INFO] 進度: %lu/%lu\n耗時: %.1fs / %.1fs (bag/實際)\n倍率: %.2f x", 
-                                processed_messages, total_messages, bag_elapsed, wall_elapsed, rtf);
-                updateStatus(std::string(buffer));
-            }
-            if (save_requested_.load()) {
-                updateStatus("[INFO] 正在儲存地圖...");
-                MO->saveMap();
-                save_requested_.store(false);
-                updateStatus("[INFO] 存檔完成");
-            }
-
-
-            if (bag_message->topic_name == "/tf" || bag_message->topic_name == "/tf_static") {
-                auto tf_msg = std::make_shared<tf2_msgs::msg::TFMessage>();
-                tf_ser.deserialize_message(&serialized_msg, tf_msg.get());
-                bool is_static = (bag_message->topic_name == "/tf_static");
-                for (const auto& transform : tf_msg->transforms) {
-                    tf_buffer_->setTransform(transform, "offline_runner", is_static);
+                // 如果拿到 nullptr，代表生產者讀完檔案了，結束迴圈
+                if (bag_message == nullptr) {
+                    break;
                 }
 
-                updateExtrinsics();
+                rclcpp::SerializedMessage serialized_msg(*bag_message->serialized_data);
+                double current_bag_time = bag_message->time_stamp / 1e9;
 
-                if (!publishBagTF) continue;
-                if (is_static)
-                    pub_tf_static_->publish(*tf_msg);
-                else
-                    pub_tf_->publish(*tf_msg);
-
-                continue;
-            }
-	          
-            if (enableColorization) {
-                auto img_it = std::find(imageTopics.begin(), imageTopics.end(), bag_message->topic_name);
-                if (img_it != imageTopics.end()) {
-                    int cam_idx = std::distance(imageTopics.begin(), img_it);
-                    if (useCompressedImages) {
-                        auto img_msg = std::make_shared<sensor_msgs::msg::CompressedImage>();
-                        comp_img_ser.deserialize_message(&serialized_msg, img_msg.get());
-                        PC->compressedImageHandler(img_msg, cam_idx);
-                    } else {
-                        auto img_msg = std::make_shared<sensor_msgs::msg::Image>();
-                        img_ser.deserialize_message(&serialized_msg, img_msg.get());
-                        PC->imageHandler(img_msg, cam_idx);
-                    }
+                if (first_msg_time == 0) {
+                    first_msg_time = bag_message->time_stamp;
+                    last_loop_closure_time = current_bag_time;
                 }
-                else {
-                    auto info_it = std::find(cameraInfoTopics.begin(), cameraInfoTopics.end(), bag_message->topic_name);
-                    if (info_it != cameraInfoTopics.end()) {
-                        int cam_idx = std::distance(cameraInfoTopics.begin(), info_it);
-                        auto info_msg = std::make_shared<sensor_msgs::msg::CameraInfo>();
-                        info_ser.deserialize_message(&serialized_msg, info_msg.get());
-                        PC->cameraInfoHandler(info_msg, cam_idx);
-                    }
-                }
-            }
 
-            if (bag_message->topic_name == imuTopic) {
-                auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
-                imu_ser.deserialize_message(&serialized_msg, imu_msg.get());
-                processImuMsg(imu_msg);
-                
-                IMUP->imuHandler(imu_msg);
-                for(int i=0; i<num_lidars; i++) IPs[i]->imuHandler(imu_msg);
-            }
-            else if (bag_message->topic_name == keyframeTopic) {
-                auto header_msg = std::make_shared<std_msgs::msg::Header>();
-                header_ser.deserialize_message(&serialized_msg, header_msg.get());
-                
-                MO->keyframeHandler(header_msg);
-            }
-            else {
-                auto it = std::find(pointCloudTopics.begin(), pointCloudTopics.end(), bag_message->topic_name);
-                if (it == pointCloudTopics.end()) continue;
-                int idx = std::distance(pointCloudTopics.begin(), it);
+                processed_messages++;
+                current_msg_count = processed_messages;
+                total_msg_count = total_messages;
+                double progress = total_messages > 0 ? (double)processed_messages / total_messages * 100.0 : 0.0;
+                current_progress = progress;
 
-                if (current_bag_time - (first_msg_time / 1e9) < skipLidarTopic)
-                    continue;
-
-                auto pc_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
-                pc_ser.deserialize_message(&serialized_msg, pc_msg.get());
-                
-                IPs[idx]->cloudHandler(pc_msg);
-
-                if (lidarSync && loopClosureEnableFlag && loopClosureFrequency > 0.0) {
-                    double loop_period = 1.0 / loopClosureFrequency;
+                if (processed_messages % 500 == 0 || processed_messages == total_messages) {
+                    auto current_wall_time = std::chrono::steady_clock::now();
+                    double wall_elapsed = std::chrono::duration<double>(current_wall_time - start_wall_time).count();
+                    double bag_elapsed = (bag_message->time_stamp - first_msg_time) / 1e9; 
+                    double rtf = wall_elapsed > 0.0 ? bag_elapsed / wall_elapsed : 0.0;
                     
-                    if (loopClosureThread) {
-                        if (current_bag_time - last_loop_closure_time >= loop_period) {
-                            last_loop_closure_time = current_bag_time;
-                            
-                            if (!is_loop_closing.load()) {
-                                is_loop_closing.store(true);
-                                
-                                std::thread([this]() {
-                                    if(useScanContext) {
-                                        MO->performRSLoopClosure();
-                                        MO->performSCLoopClosure();
-                                    }
-                                    else {
-                                        MO->performLoopClosure();
-                                    }
+                    if (wall_elapsed - last_print_time >= logInterval || processed_messages == total_messages) {
+                        last_print_time = wall_elapsed;
+                        RCLCPP_INFO(this->get_logger(), "\n[處理進度] %.1f%% (%lu/%lu) | 現實耗時: %.1fs | Bag推進: %.1fs | 倍率: %.2f x", 
+                                    progress, processed_messages, total_messages, wall_elapsed, bag_elapsed, rtf);
+                    }
+                    
+                    char buffer[256];
+                    std::snprintf(buffer, sizeof(buffer), 
+                                    "[INFO] 進度: %lu/%lu\n耗時: %.1fs / %.1fs (bag/實際)\n倍率: %.2f x", 
+                                    processed_messages, total_messages, bag_elapsed, wall_elapsed, rtf);
+                    updateStatus(std::string(buffer));
+                }
 
-                                    MO->visualizeLoopClosure();
-                                    is_loop_closing.store(false);
-                                }).detach();
-                            }
+                if (save_requested_.load()) {
+                    updateStatus("[INFO] 正在儲存地圖...");
+                    MO->saveMap();
+                    save_requested_.store(false);
+                    updateStatus("[INFO] 存檔完成");
+                }
+
+
+                if (bag_message->topic_name == "/tf" || bag_message->topic_name == "/tf_static") {
+                    auto tf_msg = std::make_shared<tf2_msgs::msg::TFMessage>();
+                    tf_ser.deserialize_message(&serialized_msg, tf_msg.get());
+                    bool is_static = (bag_message->topic_name == "/tf_static");
+                    for (const auto& transform : tf_msg->transforms) {
+                        tf_buffer_->setTransform(transform, "offline_runner", is_static);
+                    }
+
+                    updateExtrinsics();
+
+                    if (!publishBagTF) continue;
+                    if (is_static)
+                        pub_tf_static_->publish(*tf_msg);
+                    else
+                        pub_tf_->publish(*tf_msg);
+
+                    continue;
+                }
+                
+                if (enableColorization) {
+                    auto img_it = std::find(imageTopics.begin(), imageTopics.end(), bag_message->topic_name);
+                    if (img_it != imageTopics.end()) {
+                        int cam_idx = std::distance(imageTopics.begin(), img_it);
+                        if (useCompressedImages) {
+                            auto img_msg = std::make_shared<sensor_msgs::msg::CompressedImage>();
+                            comp_img_ser.deserialize_message(&serialized_msg, img_msg.get());
+                            PC->compressedImageHandler(img_msg, cam_idx);
+                        } else {
+                            auto img_msg = std::make_shared<sensor_msgs::msg::Image>();
+                            img_ser.deserialize_message(&serialized_msg, img_msg.get());
+                            PC->imageHandler(img_msg, cam_idx);
                         }
                     }
                     else {
-                        if(useScanContext) {
-                            MO->performRSLoopClosure();
-                            MO->performSCLoopClosure();
+                        auto info_it = std::find(cameraInfoTopics.begin(), cameraInfoTopics.end(), bag_message->topic_name);
+                        if (info_it != cameraInfoTopics.end()) {
+                            int cam_idx = std::distance(cameraInfoTopics.begin(), info_it);
+                            auto info_msg = std::make_shared<sensor_msgs::msg::CameraInfo>();
+                            info_ser.deserialize_message(&serialized_msg, info_msg.get());
+                            PC->cameraInfoHandler(info_msg, cam_idx);
                         }
-                        else {
-                            MO->performLoopClosure();
-                        }
-                        MO->visualizeLoopClosure();
                     }
                 }
-                lidarSync = false;
-            }
 
-            std::this_thread::yield();
+                if (bag_message->topic_name == imuTopic) {
+                    auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
+                    imu_ser.deserialize_message(&serialized_msg, imu_msg.get());
+                    processImuMsg(imu_msg);
+                    
+                    IMUP->imuHandler(imu_msg);
+                    for(int i=0; i<num_lidars; i++) IPs[i]->imuHandler(imu_msg);
+                }
+                else if (bag_message->topic_name == keyframeTopic) {
+                    auto header_msg = std::make_shared<std_msgs::msg::Header>();
+                    header_ser.deserialize_message(&serialized_msg, header_msg.get());
+                    
+                    MO->keyframeHandler(header_msg);
+                }
+                else {
+                    auto it = std::find(pointCloudTopics.begin(), pointCloudTopics.end(), bag_message->topic_name);
+                    if (it == pointCloudTopics.end()) continue;
+                    int idx = std::distance(pointCloudTopics.begin(), it);
+
+                    if (current_bag_time - (first_msg_time / 1e9) < skipLidarTopic)
+                        continue;
+
+                    auto pc_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
+                    pc_ser.deserialize_message(&serialized_msg, pc_msg.get());
+                    
+                    IPs[idx]->cloudHandler(pc_msg);
+
+                    if (lidarSync && loopClosureEnableFlag && loopClosureFrequency > 0.0) {
+                        double loop_period = 1.0 / loopClosureFrequency;
+                        
+                        if (loopClosureThread) {
+                            if (current_bag_time - last_loop_closure_time >= loop_period) {
+                                last_loop_closure_time = current_bag_time;
+                                
+                                if (!is_loop_closing.load()) {
+                                    is_loop_closing.store(true);
+                                    
+                                    std::thread([this]() {
+                                        if(useScanContext) {
+                                            MO->performRSLoopClosure();
+                                            MO->performSCLoopClosure();
+                                        }
+                                        else {
+                                            MO->performLoopClosure();
+                                        }
+
+                                        MO->visualizeLoopClosure();
+                                        is_loop_closing.store(false);
+                                    }).detach();
+                                }
+                            }
+                        }
+                        else {
+                            if(useScanContext) {
+                                MO->performRSLoopClosure();
+                                MO->performSCLoopClosure();
+                            }
+                            else {
+                                MO->performLoopClosure();
+                            }
+                            MO->visualizeLoopClosure();
+                        }
+                    }
+                    lidarSync = false;
+                }
+
+                std::this_thread::yield();
+            }
+        });
+
+        while (reader.has_next() && rclcpp::ok()) {
+            bag_queue_.push(reader.read_next());
         }
+
+        bag_queue_.push(nullptr);
+
+        compute_thread.join();
 
         if (loopClosureThread && is_loop_closing.load()) {
             RCLCPP_INFO(this->get_logger(), "等待最後一次回環檢測運算結束...");

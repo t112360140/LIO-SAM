@@ -27,7 +27,8 @@
     # Export settings
     savePCD: false                               # https://github.com/TixiaoShan/LIO-SAM/issues/3
     savePCDDirectory: "/MAP/LOAM/"               # in your home folder, starts and ends with "/". Warning: the code deletes "LOAM" folder then recreates it. See "mapOptimization" for implementation
-    chuckSize: 100.0
+    chuckSize: 50.0
+    splitZ: true
 
     # Sensor Settings
     sensor: velodyne                             # lidar sensor type, either 'velodyne', 'ouster' or 'livox'
@@ -81,15 +82,15 @@
 
     # voxel filter paprams
     odometrySurfLeafSize: 0.2                    # default: 0.4 - outdoor, 0.2 - indoor
-    mappingCornerLeafSize: 0.4                   # default: 0.2 - outdoor, 0.1 - indoor
-    mappingSurfLeafSize: 0.8                     # default: 0.4 - outdoor, 0.2 - indoor
+    mappingCornerLeafSize: 0.1                   # default: 0.2 - outdoor, 0.1 - indoor
+    mappingSurfLeafSize: 0.2                     # default: 0.4 - outdoor, 0.2 - indoor
     
     # robot motion constraint (in case you are using a 2D robot)
     z_tollerance: 1000.0                          # meters
     rotation_tollerance: 1000.0                   # radians
 
     # CPU Params
-    numberOfCores: 31                              # number of cores for mapping optimization
+    numberOfCores: 32                              # number of cores for mapping optimization
     mappingProcessInterval: 0.1                    # seconds, regulate mapping frequency
 
     relinearizeSkip: 1

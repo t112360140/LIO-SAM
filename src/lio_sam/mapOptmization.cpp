@@ -153,6 +153,8 @@ public:
 
     std::unique_ptr<tf2_ros::TransformBroadcaster> br;
 
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+
     mapOptimization(const rclcpp::NodeOptions & options) : ParamServer("lio_sam_mapOptimization", options)
     {
         ISAM2Params parameters;
@@ -473,25 +475,27 @@ public:
     void saveChunkedPCD(const typename pcl::PointCloud<PointT>::Ptr& cloud, const std::string& baseFilePath)
     {
         if (cloud->empty()) return;
+        std::string file_ext = ".pcd";
 
         if (chuckSize <= 0.0) {
-            std::string finalPath = baseFilePath + ".pcd";
+            std::string finalPath = baseFilePath + file_ext;
             pcl::io::savePCDFileBinary(finalPath, *cloud);
-            cout << "Saved complete map to: " << finalPath << endl;
+            std::cout << "Saved complete map to: " << finalPath << std::endl;
         } 
         else {
             std::string chunkDirectory = baseFilePath + "_chunks";
             int unused_dir = system((std::string("mkdir -p ") + chunkDirectory).c_str());
             (void)unused_dir;
 
-            // 使用 std::map 分類點雲，Key 為 "X_Y"
             std::map<std::string, typename pcl::PointCloud<PointT>::Ptr> cloud_chunks;
 
             for (const auto& pt : cloud->points) {
                 int chunk_x = std::floor(pt.x / chuckSize);
                 int chunk_y = std::floor(pt.y / chuckSize);
+                int chunk_z = std::floor(pt.z / chuckSize);
                 
                 std::string key = std::to_string(chunk_x) + "_" + std::to_string(chunk_y);
+                if(splitZ) key += "_" + std::to_string(chunk_z);
 
                 if (cloud_chunks.find(key) == cloud_chunks.end()) {
                     cloud_chunks[key].reset(new pcl::PointCloud<PointT>());
@@ -501,7 +505,7 @@ public:
 
             int chunk_count = 0;
             for (auto const& [key, chunk_cloud] : cloud_chunks) {
-                std::string chunk_filename = chunkDirectory + "/" + key + ".pcd";
+                std::string chunk_filename = chunkDirectory + "/" + key + file_ext;
                 pcl::io::savePCDFileBinary(chunk_filename, *chunk_cloud);
                 chunk_count++;
             }
@@ -2127,6 +2131,9 @@ public:
         tf2::convert(temp_odom_to_lidar, trans_odom_to_lidar);
         trans_odom_to_lidar.child_frame_id = "lidar_link";
         br->sendTransform(trans_odom_to_lidar);
+
+        if (tf_buffer_)
+            tf_buffer_->setTransform(trans_odom_to_lidar, "mapOptimization", false);
 
         // Publish odometry for ROS (incremental)
         static bool lastIncreOdomPubFlag = false;

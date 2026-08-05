@@ -45,6 +45,8 @@ public:
     std::shared_ptr<tf2_ros::TransformListener> tfListener;
     tf2::Stamped<tf2::Transform> lidar2Baselink;
 
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+
     double lidarOdomTime = -1;
     deque<nav_msgs::msg::Odometry> imuOdomQueue;
 
@@ -148,6 +150,9 @@ public:
         ts.header.frame_id = odometryFrame;
         ts.child_frame_id = baselinkFrame;
         tfBroadcaster->sendTransform(ts);
+
+        if (tf_buffer_)
+            tf_buffer_->setTransform(ts, "TransformFusion", false);
 
         // publish IMU path
         static nav_msgs::msg::Path imuPath;
