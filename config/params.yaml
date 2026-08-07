@@ -5,8 +5,8 @@
 
     # Topics
     pointCloudTopic: "/velodyne_points"          # Point cloud data
-    # imuTopic: "/imu/data"                        # IMU data
-    imuTopic: "/imu/data_raw"                    # IMU data
+    imuTopic: "/imu/data"                        # IMU data
+    # imuTopic: "/imu/data_raw"                    # IMU data
     odomTopic: "odometry/imu"                    # IMU pre-preintegration odometry, same frequency as IMU
     gpsTopic: "odometry/gpsz"                    # GPS odometry topic from navsat, see module_navsat.launch file
     
@@ -34,7 +34,7 @@
     sensor: velodyne                             # lidar sensor type, either 'velodyne', 'ouster' or 'livox'
     N_SCAN: 16                                   # number of lidar channels (i.e., Velodyne/Ouster: 16, 32, 64, 128, Livox Horizon: 6)
     Horizon_SCAN: 1800                           # lidar horizontal resolution (Velodyne:1800, Ouster:512,1024,2048, Livox Horizon: 4000)
-    downsampleRate: 2                            # default: 1. Downsample your data if too many
+    downsampleRate: 1                            # default: 1. Downsample your data if too many
     # points. i.e., 16 = 64 / 4, 16 = 16 / 1
     lidarMinRange: 2.0                           # default: 1.0, minimum lidar range to be used
     lidarMaxRange: 100.0                         # default: 1000.0, maximum lidar range to be used
@@ -57,22 +57,22 @@
     #                 0.0, 1.0, 0.0,
     #                 0.0, 0.0, 1.0]
 
-    # extrinsicTrans: [1.05, 0.0, -1.52]
-    # extrinsicRot: [ 0.8773, -0.0110,  0.4797,
-    #               0.0135,  0.9999, -0.0017,
-    #              -0.4796,  0.0080,  0.8774]
-    # extrinsicRPY: [ 0.8773,  0.0135, -0.4796,
-    #              -0.0110,  0.9999,  0.0080,
-    #               0.4797, -0.0017,  0.8774]
+    extrinsicTrans: [1.05, 0.0, -1.52]
+    extrinsicRot: [ 0.8773, -0.0110,  0.4797,
+                  0.0135,  0.9999, -0.0017,
+                 -0.4796,  0.0080,  0.8774]
+    extrinsicRPY: [ 0.8773,  0.0135, -0.4796,
+                 -0.0110,  0.9999,  0.0080,
+                  0.4797, -0.0017,  0.8774]
 
     # Extrinsics: T_lb (base_link -> imu)(Multi Lidar)
-    extrinsicTrans: [0.0, 0.0, 0.0]
-    extrinsicRot: [1.0, 0.0, 0.0,
-                    0.0, -1.0, 0.0,
-                    0.0, 0.0, -1.0]
-    extrinsicRPY: [1.0, 0.0, 0.0,
-                    0.0, -1.0, 0.0,
-                    0.0, 0.0, -1.0]
+    # extrinsicTrans: [0.0, 0.0, 0.0]
+    # extrinsicRot: [1.0, 0.0, 0.0,
+    #                 0.0, -1.0, 0.0,
+    #                 0.0, 0.0, -1.0]
+    # extrinsicRPY: [1.0, 0.0, 0.0,
+    #                 0.0, -1.0, 0.0,
+    #                 0.0, 0.0, -1.0]
 
     # LOAM feature threshold
     edgeThreshold: 1.0
@@ -81,16 +81,16 @@
     surfFeatureMinValidNum: 100
 
     # voxel filter paprams
-    odometrySurfLeafSize: 0.2                    # default: 0.4 - outdoor, 0.2 - indoor
-    mappingCornerLeafSize: 0.1                   # default: 0.2 - outdoor, 0.1 - indoor
-    mappingSurfLeafSize: 0.2                     # default: 0.4 - outdoor, 0.2 - indoor
+    odometrySurfLeafSize: 0.4                    # default: 0.4 - outdoor, 0.2 - indoor
+    mappingCornerLeafSize: 0.2                   # default: 0.2 - outdoor, 0.1 - indoor
+    mappingSurfLeafSize: 0.4                     # default: 0.4 - outdoor, 0.2 - indoor
     
     # robot motion constraint (in case you are using a 2D robot)
     z_tollerance: 1000.0                          # meters
     rotation_tollerance: 1000.0                   # radians
 
     # CPU Params
-    numberOfCores: 32                              # number of cores for mapping optimization
+    numberOfCores: 30                              # number of cores for mapping optimization
     mappingProcessInterval: 0.1                    # seconds, regulate mapping frequency
 
     relinearizeSkip: 1
@@ -136,7 +136,7 @@
     maxIntensity: 60.0
     minIntensity: 0.0
     publishBagTF: true
-    skipLidarTopic: 1.0     # skip lidar topic before n sec
+    skipLidarTopic: 0.0     # skip lidar topic before n sec
 
 
     saveFullKeyFrame: false
@@ -154,33 +154,33 @@
     cameraSyncDelayWindow: 0.06
 
     imageTopics:
-      # - "/usb_cam_1/image_raw/compressed"
-      - "/usb_cam1/image_raw/compressed"
-      - "/usb_cam2/image_raw/compressed"
-      - "/usb_cam3/image_raw/compressed"
-      - "/usb_cam4/image_raw/compressed"
-      - "/usb_cam5/image_raw/compressed"
-      - "/usb_cam6/image_raw/compressed"
+      - "/usb_cam_1/image_raw/compressed"
+      # - "/usb_cam1/image_raw/compressed"
+      # - "/usb_cam2/image_raw/compressed"
+      # - "/usb_cam3/image_raw/compressed"
+      # - "/usb_cam4/image_raw/compressed"
+      # - "/usb_cam5/image_raw/compressed"
+      # - "/usb_cam6/image_raw/compressed"
     cameraInfoTopics:
-      # - "/usb_cam_1/camera_info"
-      - "/usb_cam1/camera_info"
-      - "/usb_cam2/camera_info"
-      - "/usb_cam3/camera_info"
-      - "/usb_cam4/camera_info"
-      - "/usb_cam5/camera_info"
-      - "/usb_cam6/camera_info"
+      - "/usb_cam_1/camera_info"
+      # - "/usb_cam1/camera_info"
+      # - "/usb_cam2/camera_info"
+      # - "/usb_cam3/camera_info"
+      # - "/usb_cam4/camera_info"
+      # - "/usb_cam5/camera_info"
+      # - "/usb_cam6/camera_info"
     cameraFrameIds:
-      # - "camera_link"
-      - "camera_1"
-      - "camera_2"
-      - "camera_3"
-      - "camera_4"
-      - "camera_5"
-      - "camera_6"
+      - "camera_link"
+      # - "camera_1"
+      # - "camera_2"
+      # - "camera_3"
+      # - "camera_4"
+      # - "camera_5"
+      # - "camera_6"
 
 
     # IMU tools
-    use_complementary_filter: true
+    use_complementary_filter: false
     gain_acc: 0.01
     gain_mag: 0.01
     bias_alpha: 0.01
@@ -191,18 +191,18 @@
 
     # Multi Lidar
     pointCloudTopics:                          # Point cloud datas
-      # - "/velodyne_points"
-      - "/lidar_L/velodyne_points"
-      - "/lidar_R/velodyne_points"
-      - "/lidar_LL/velodyne_points"
-      - "/lidar_RR/velodyne_points"
+      - "/velodyne_points"
+      # - "/lidar_L/velodyne_points"
+      # - "/lidar_R/velodyne_points"
+      # - "/lidar_LL/velodyne_points"
+      # - "/lidar_RR/velodyne_points"
       # - "/lidar_MID/velodyne_points"
     lidarFrames:
-      # - "velodyne"
-      - "velodyne_L"
-      - "velodyne_R"
-      - "velodyne_LL"
-      - "velodyne_RR"
+      - "velodyne"
+      # - "velodyne_L"
+      # - "velodyne_R"
+      # - "velodyne_LL"
+      # - "velodyne_RR"
       # - "velodyne_MID"
 
     lidarSyncDelayWindow: 0.03
@@ -211,16 +211,17 @@
     # Static TF (parent, child, x, y, z, roll, pitch, yaw)
     static_tfs:
       # - "parent_link, child_link,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0"
-      - "base_link, velodyne_L,    0.0000,  0.1594, 0.3200,   0.0000,  0.0000,  0.0000"
-      - "base_link, velodyne_R,    0.0576, -0.1594, 0.2921,  -0.0004,  0.0459,  0.0091"
-      - "base_link, velodyne_LL,  -0.0241,  0.8124, 0.0957,  -0.7729,  0.0047,  0.0241"
-      - "base_link, velodyne_RR,  -0.0221, -0.5625, 0.1281,   0.7698,  0.0281,  0.0102"
-      - "base_link, velodyne_MID,  0.6720,  0.2900, 0.0800,  -0.0100,  0.8000,  0.0210"   # 不準?
+      - "base_link, velodyne,      0.0000,  0.0000, 0.0000,   0.0000,  0.0000,  0.0000"
+      # - "base_link, velodyne_L,    0.0000,  0.1594, 0.3200,   0.0000,  0.0000,  0.0000"
+      # - "base_link, velodyne_R,    0.0576, -0.1594, 0.2921,  -0.0004,  0.0459,  0.0091"
+      # - "base_link, velodyne_LL,  -0.0241,  0.8124, 0.0957,  -0.7729,  0.0047,  0.0241"
+      # - "base_link, velodyne_RR,  -0.0221, -0.5625, 0.1281,   0.7698,  0.0281,  0.0102"
+      # - "base_link, velodyne_MID,  0.6720,  0.2900, 0.0800,  -0.0100,  0.8000,  0.0210"   # 不準?
 
-      - "base_link, camera_1,  -0.390,  0.000, 0.340,  -1.5708, 0.000, -1.5708" 
-      - "base_link, camera_2,  -0.475,  0.147, 0.340,  -1.5708, 0.000, -0.5236"
-      - "base_link, camera_3,  -0.645,  0.147, 0.340,  -1.5708, 0.000,  0.5236"
-      - "base_link, camera_4,  -0.730,  0.000, 0.340,  -1.5708, 0.000,  1.5708"
-      - "base_link, camera_5,  -0.645, -0.147, 0.340,  -1.5708, 0.000,  2.6180"
-      - "base_link, camera_6,  -0.475, -0.147, 0.340,  -1.5708, 0.000, -2.6180"
+      # - "base_link, camera_1,  -0.390,  0.000, 0.340,  -1.5708, 0.000, -1.5708" 
+      # - "base_link, camera_2,  -0.475,  0.147, 0.340,  -1.5708, 0.000, -0.5236"
+      # - "base_link, camera_3,  -0.645,  0.147, 0.340,  -1.5708, 0.000,  0.5236"
+      # - "base_link, camera_4,  -0.730,  0.000, 0.340,  -1.5708, 0.000,  1.5708"
+      # - "base_link, camera_5,  -0.645, -0.147, 0.340,  -1.5708, 0.000,  2.6180"
+      # - "base_link, camera_6,  -0.475, -0.147, 0.340,  -1.5708, 0.000, -2.6180"
 

@@ -123,6 +123,12 @@ if(ROS_DISTRO STREQUAL "galactic")
     target_link_libraries(${PROJECT_NAME}_offline_runner point_colorizer_cuda cudart)
   endif()
 
+
+  add_executable(${PROJECT_NAME}_mapViewerServer src/map_viewer_server.cpp)
+  target_compile_definitions(${PROJECT_NAME}_mapViewerServer PRIVATE PROJECT_NAME="${PROJECT_NAME}")
+  ament_target_dependencies(${PROJECT_NAME}_mapViewerServer rclcpp rclpy std_msgs sensor_msgs geometry_msgs nav_msgs pcl_conversions pcl_msgs visualization_msgs tf2 tf2_ros tf2_eigen tf2_sensor_msgs tf2_geometry_msgs OpenCV PCL ament_index_cpp)
+  rosidl_target_interfaces(${PROJECT_NAME}_mapViewerServer ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
 elseif(ROS_DISTRO STREQUAL "humble")
 	add_definitions(-DROS_HUMBLE)
 
@@ -162,6 +168,12 @@ elseif(ROS_DISTRO STREQUAL "humble")
   if(ENABLE_GPU AND CMAKE_CUDA_COMPILER)
     target_link_libraries(${PROJECT_NAME}_offline_runner point_colorizer_cuda cudart)
   endif()
+
+
+  add_executable(${PROJECT_NAME}_mapViewerServer src/map_viewer_server.cpp)
+  target_compile_definitions(${PROJECT_NAME}_mapViewerServer PRIVATE PROJECT_NAME="${PROJECT_NAME}")
+  ament_target_dependencies(${PROJECT_NAME}_mapViewerServer rclcpp rclpy std_msgs sensor_msgs geometry_msgs nav_msgs pcl_conversions pcl_msgs visualization_msgs tf2 tf2_ros tf2_eigen tf2_sensor_msgs tf2_geometry_msgs OpenCV PCL ament_index_cpp)
+  target_link_libraries(${PROJECT_NAME}_mapViewerServer "${cpp_typesupport_target}")
 
 else()
     message(WARNING "Unknown ROS 2 Distribution: ${ROS_DISTRO}")
@@ -206,6 +218,11 @@ install(
 
 install(
   TARGETS ${PROJECT_NAME}_offline_runner
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  TARGETS ${PROJECT_NAME}_mapViewerServer
   DESTINATION lib/${PROJECT_NAME}
 )
 

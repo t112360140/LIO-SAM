@@ -1376,7 +1376,7 @@ public:
         customVoxelGridColor(laserCloudCornerFromMap, laserCloudCornerFromMapDS, mappingCornerLeafSize);
         laserCloudCornerFromMapDSNum = laserCloudCornerFromMapDS->size();
         // Downsample the surrounding surf key frames (or map)
-        customVoxelGridColor(laserCloudSurfFromMap, laserCloudSurfFromMapDS, mappingCornerLeafSize);
+        customVoxelGridColor(laserCloudSurfFromMap, laserCloudSurfFromMapDS, mappingSurfLeafSize);
         laserCloudSurfFromMapDSNum = laserCloudSurfFromMapDS->size();
 
         // clear map cache if too large
@@ -1407,7 +1407,7 @@ public:
         laserCloudCornerLastDSNum = laserCloudCornerLastDS->size();
 
         laserCloudSurfLastDS->clear();
-        customVoxelGridColor(laserCloudSurfLast, laserCloudSurfLastDS, mappingCornerLeafSize);
+        customVoxelGridColor(laserCloudSurfLast, laserCloudSurfLastDS, mappingSurfLeafSize);
         laserCloudSurfLastDSNum = laserCloudSurfLastDS->size();
 
         // giseop

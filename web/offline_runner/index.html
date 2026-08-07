@@ -18,7 +18,7 @@
 
     <!-- 右側控制面板 -->
     <div class="control-panel">
-        <h2>📍 LIO-SAM Offline Monitor</h2>
+        <h2><span class="material-symbols-outlined">map</span> LIO-SAM Offline Monitor</h2>
         
         <p class="status-text"><strong>狀態：</strong><br><span id="status" style="color: #ffeb3b;">Initializing...</span></p>
         <p class="status-text"><strong>處理進度：</strong> <span id="msg" style="float: right;">0 / 0</span></p>
@@ -50,25 +50,25 @@
             <div style="margin-bottom: 5px; margin-top: 5px;">
                 <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" id="color-checkbox" checked style="width: 16px; height: 16px; cursor: pointer;">
-                    🌈 啟用彩色點雲
+                    <span class="material-symbols-outlined">colors</span> 啟用彩色點雲
                 </label>
             </div>
 
             <div style="margin-bottom: 5px; margin-top: 5px;">
                 <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" id="loop-checkbox" checked style="width: 16px; height: 16px; cursor: pointer;" onchange="toggleLoopEdges()">
-                    🔗 顯示回環連結
+                    <span class="material-symbols-outlined">link_2</span> 顯示回環連結
                 </label>
             </div>
 
             <!-- 開啟/關閉自動更新軌跡 -->
-            <button class="btn" id="btn-toggle-path" onclick="toggleAutoPath()">⏸️ 暫停自動更新軌跡</button>
+            <button class="btn" id="btn-toggle-path" onclick="toggleAutoPath()"><span class="material-symbols-outlined">pause</span> 暫停自動更新軌跡</button>
             
             <!-- 手動拉取最新全局點雲 -->
-            <button class="btn btn-warning" onclick="loadPointCloudPreview()">☁️ 載入/刷新全局點雲</button>
+            <button class="btn btn-warning" onclick="loadPointCloudPreview()"><span class="material-symbols-outlined">cloud</span> 載入/刷新全局點雲</button>
             
             <!-- 觸發存檔 -->
-            <button class="btn btn-success" onclick="triggerSave()">💾 儲存最終地圖</button>
+            <button class="btn btn-success" onclick="triggerSave()"><span class="material-symbols-outlined">save</span> 儲存最終地圖</button>
         </div>
     </div>
 

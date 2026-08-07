@@ -224,7 +224,7 @@ public:
         if(!enable_web) return;
         http_thread_ = std::thread([this]() {
             std::string pkg_share_dir = ament_index_cpp::get_package_share_directory(PROJECT_NAME);
-            std::string web_dir = pkg_share_dir + "/web";
+            std::string web_dir = pkg_share_dir + "/web" + "/offline_runner";
             std::string index_path = web_dir + "/index.html";
 
             try {
@@ -602,23 +602,21 @@ private:
                 double progress = total_messages > 0 ? (double)processed_messages / total_messages * 100.0 : 0.0;
                 current_progress = progress;
 
-                if (processed_messages % 500 == 0 || processed_messages == total_messages) {
-                    auto current_wall_time = std::chrono::steady_clock::now();
-                    double wall_elapsed = std::chrono::duration<double>(current_wall_time - start_wall_time).count();
-                    double bag_elapsed = (bag_message->time_stamp - first_msg_time) / 1e9; 
-                    double rtf = wall_elapsed > 0.0 ? bag_elapsed / wall_elapsed : 0.0;
+                auto current_wall_time = std::chrono::steady_clock::now();
+                double wall_elapsed = std::chrono::duration<double>(current_wall_time - start_wall_time).count();
+                double bag_elapsed = (bag_message->time_stamp - first_msg_time) / 1e9; 
+                double rtf = wall_elapsed > 0.0 ? bag_elapsed / wall_elapsed : 0.0;
+                
+                if (wall_elapsed - last_print_time >= logInterval || processed_messages == total_messages) {
+                    last_print_time = wall_elapsed;
+                    RCLCPP_INFO(this->get_logger(), "\n[處理進度] %.1f%% (%lu/%lu) | 現實耗時: %.1fs | Bag推進: %.1fs | 倍率: %.2f x", 
+                                progress, processed_messages, total_messages, wall_elapsed, bag_elapsed, rtf);
                     
-                    if (wall_elapsed - last_print_time >= logInterval || processed_messages == total_messages) {
-                        last_print_time = wall_elapsed;
-                        RCLCPP_INFO(this->get_logger(), "\n[處理進度] %.1f%% (%lu/%lu) | 現實耗時: %.1fs | Bag推進: %.1fs | 倍率: %.2f x", 
-                                    progress, processed_messages, total_messages, wall_elapsed, bag_elapsed, rtf);
-                    }
-                    
-                    char buffer[256];
-                    std::snprintf(buffer, sizeof(buffer), 
-                                    "[INFO] 進度: %lu/%lu\n耗時: %.1fs / %.1fs (bag/實際)\n倍率: %.2f x", 
-                                    processed_messages, total_messages, bag_elapsed, wall_elapsed, rtf);
-                    updateStatus(std::string(buffer));
+                char buffer[256];
+                std::snprintf(buffer, sizeof(buffer), 
+                                "[INFO] 進度: %lu/%lu\n耗時: %.1fs / %.1fs (bag/實際)\n倍率: %.2f x", 
+                                processed_messages, total_messages, bag_elapsed, wall_elapsed, rtf);
+                updateStatus(std::string(buffer));
                 }
 
                 if (save_requested_.load()) {
