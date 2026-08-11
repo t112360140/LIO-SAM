@@ -26,6 +26,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/registration/icp.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/io/ply_io.h>
 #include <pcl/filters/filter.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/crop_box.h>
@@ -227,6 +228,7 @@ public:
     string savePCDDirectory;
     double chuckSize;
     bool splitZ;
+    bool saveToPly;
 
     // Lidar Sensor Configuration
     SensorType sensor = SensorType::OUSTER;
@@ -356,6 +358,8 @@ public:
         get_parameter("chuckSize", chuckSize);
         declare_parameter("splitZ", true);
         get_parameter("splitZ", splitZ);
+        declare_parameter("splisaveToPlytZ", false);
+        get_parameter("saveToPly", saveToPly);
 
         std::string sensorStr;
         declare_parameter("sensor", "ouster");

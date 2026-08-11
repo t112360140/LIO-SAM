@@ -514,12 +514,15 @@ public:
     void saveChunkedPCD(const typename pcl::PointCloud<PointT>::Ptr& cloud, const std::string& baseFilePath)
     {
         if (cloud->empty()) return;
-        std::string file_ext = ".pcd";
 
         if (chuckSize <= 0.0) {
-            std::string finalPath = baseFilePath + file_ext;
-            pcl::io::savePCDFileBinary(finalPath, *cloud);
-            std::cout << "Saved complete map to: " << finalPath << std::endl;
+            pcl::io::savePCDFileBinary(baseFilePath + ".pcd", *cloud);
+            std::cout << "Saved complete map to: " << baseFilePath << ".pcd" << std::endl;
+
+            if(saveToPly) {
+                pcl::io::savePLYFileBinary(baseFilePath + ".ply", *cloud);
+                std::cout << "Saved complete map to: " << baseFilePath << ".ply" << std::endl;
+            }
         } 
         else {
             std::string chunkDirectory = baseFilePath + "_chunks";
@@ -544,7 +547,7 @@ public:
 
             int chunk_count = 0;
             for (auto const& [key, chunk_cloud] : cloud_chunks) {
-                std::string chunk_filename = chunkDirectory + "/" + key + file_ext;
+                std::string chunk_filename = chunkDirectory + "/" + key + ".pcd";
                 pcl::io::savePCDFileBinary(chunk_filename, *chunk_cloud);
                 chunk_count++;
             }
