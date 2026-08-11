@@ -358,7 +358,7 @@ public:
         get_parameter("chuckSize", chuckSize);
         declare_parameter("splitZ", true);
         get_parameter("splitZ", splitZ);
-        declare_parameter("splisaveToPlytZ", false);
+        declare_parameter("saveToPly", false);
         get_parameter("saveToPly", saveToPly);
 
         std::string sensorStr;
