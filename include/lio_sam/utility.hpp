@@ -69,7 +69,7 @@
 
 using namespace std;
 
-struct PointXYZIRGB {
+struct PointXYZIRGBL {
     PCL_ADD_POINT4D;
     float intensity;
     union {
@@ -79,16 +79,18 @@ struct PointXYZIRGB {
         };
         uint32_t rgba;
     };
+    uint32_t label;
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } EIGEN_ALIGN16;
 
-POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIRGB,
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIRGBL,
     (float, x, x) (float, y, y) (float, z, z) 
     (float, intensity, intensity)
     (float, rgb, rgb)
+    (uint32_t, label, label)
 )
 
-typedef PointXYZIRGB PointType;
+typedef PointXYZIRGBL PointType;
 
 /*
     * A point cloud type that has 6D pose info ([x,y,z,roll,pitch,yaw] intensity is time stamp)

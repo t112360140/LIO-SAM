@@ -91,7 +91,16 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setClearColor(0x111111);
+renderer.xr.enabled = true;
 container.appendChild(renderer.domElement);
+
+if ('xr' in navigator) {
+    navigator.xr.isSessionSupported('immersive-vr').then(function (supported) {
+        if (supported) {
+            document.body.appendChild(VRButton.createButton(renderer));
+        }
+    });
+}
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -112,11 +121,10 @@ let currentPointCloud = null;
 
 // 動畫迴圈
 function animate() {
-    requestAnimationFrame(animate);
     controls.update();
     renderer.render(scene, camera);
 }
-animate();
+renderer.setAnimationLoop(animate);
 
 // RWD 視窗大小調整
 window.addEventListener('resize', () => {

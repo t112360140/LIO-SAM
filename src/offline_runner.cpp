@@ -15,6 +15,7 @@
 #include <mutex>
 #include <filesystem>
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <deque>
 
 #include "lio_sam/imageProjection.cpp"
 #include "lio_sam/featureExtraction.cpp"
@@ -68,8 +69,12 @@ public:
         this->get_parameter("pointCloudTopics", pointCloudTopics);
         this->declare_parameter("lidarFrames", std::vector<std::string>());
         this->get_parameter("lidarFrames", lidarFrames);
+        this->declare_parameter("requireLidar", std::vector<bool>());
+        this->get_parameter("requireLidar", requireLidar);
         this->declare_parameter("lidarSyncDelayWindow", 0.01);
         this->get_parameter("lidarSyncDelayWindow", lidarSyncDelayWindow);
+        this->declare_parameter("imuTimeOffset", 0.0);
+        this->get_parameter("imuTimeOffset", imuTimeOffset);
 
         if (pointCloudTopics.size() != lidarFrames.size() || pointCloudTopics.empty()) {
             RCLCPP_ERROR(this->get_logger(), 
@@ -80,6 +85,10 @@ public:
         }
         num_lidars = pointCloudTopics.size();
         RCLCPP_INFO(this->get_logger(), "成功偵測到 %d 顆光達配置，開始初始化...", num_lidars);
+
+        while(requireLidar.size()<num_lidars) {
+            requireLidar.push_back(false);
+        }
 
         pubDebugStatus = create_publisher<std_msgs::msg::String>("lio_sam/deebug/status", 1);
 
@@ -141,7 +150,7 @@ public:
 
         IPs.resize(num_lidars);
         FEs.resize(num_lidars);
-        cloudsBuffer.resize(num_lidars);
+        cloudsQueue.resize(num_lidars);
         for (int i = 0; i < num_lidars; i++) {
             IPs[i] = std::make_shared<ImageProjection>(options);
             FEs[i] = std::make_shared<FeatureExtraction>(options);
@@ -191,6 +200,7 @@ public:
         });
     
         skipLidarTopic = this->declare_parameter<double>("skipLidarTopic", 0.0);
+        procLidarTopic = this->declare_parameter<double>("procLidarTopic", 0.0);
 
         use_complementary_filter_ = this->declare_parameter<bool>("use_complementary_filter", false);
 
@@ -346,11 +356,13 @@ private:
     std::mutex status_mtx;
 
     double skipLidarTopic;
+    double procLidarTopic;
 
     bool publishBagTF;
 
     std::vector<std::string> pointCloudTopics;
     std::vector<std::string> lidarFrames;
+    std::vector<bool> requireLidar;
     float lidarSyncDelayWindow;
     int num_lidars = 0;
 
@@ -359,6 +371,8 @@ private:
 
     double last_imu_time_ = 0.0;
     bool filter_initialized_ = false;
+
+    float imuTimeOffset;
 
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
@@ -391,16 +405,22 @@ private:
                     t.transform.rotation.w, t.transform.rotation.x, 
                     t.transform.rotation.y, t.transform.rotation.z);
                 Eigen::Matrix3d R_base_to_lidar = q_base_to_lidar.toRotationMatrix();
+                Eigen::Vector3d t_base_to_lidar(
+                    t.transform.translation.x, 
+                    t.transform.translation.y, 
+                    t.transform.translation.z);
                 
                 // 求反矩陣 (R_lidar_to_base)
                 Eigen::Matrix3d R_lidar_to_base = R_base_to_lidar.transpose();
+                Eigen::Vector3d t_lidar_to_base = -R_lidar_to_base * t_base_to_lidar;
 
                 // 計算 IMU -> lidar_i 的旋轉矩陣，並直接覆寫 IP 內部的變數！
                 // (this->extRot 維持是 IMU -> base_link 的關係)
                 IPs[i]->extRot = R_lidar_to_base * this->extRot;
-                IPs[i]->extRPY = R_lidar_to_base * this->extRPY;
+                IPs[i]->extRPY = this->extRPY * R_base_to_lidar;
                 IPs[i]->extQRPY = Eigen::Quaterniond(IPs[i]->extRPY).normalized();
-
+                
+                IPs[i]->extTrans = R_lidar_to_base * this->extTrans + t_lidar_to_base;
             } catch (const tf2::TransformException & ex) {
 
             }
@@ -450,47 +470,144 @@ private:
 
     bool lidarSync = false;
     double first_lidar_time_ = -1.0;
-    std::vector<lio_sam::msg::CloudInfo::SharedPtr> cloudsBuffer;
+    std::vector<std::deque<lio_sam::msg::CloudInfo::SharedPtr>> cloudsQueue;
+    double latest_global_time_ = -1.0;
     void syncAndMergeHandler(const lio_sam::msg::CloudInfo::SharedPtr msgIn, int lidar_idx) {
         double current_time = msgIn->header.stamp.sec + msgIn->header.stamp.nanosec * 1e-9;
+        
+        cloudsQueue[lidar_idx].push_back(msgIn);
 
-        if (first_lidar_time_ > 0 && (current_time - first_lidar_time_ > lidarSyncDelayWindow)) {
-            RCLCPP_WARN(this->get_logger(), "光達同步超時！強制合併並輸出殘缺幀。");
-            executeMerge();
-            first_lidar_time_ = -1.0;
-        }
+        if (current_time > latest_global_time_)
+            latest_global_time_ = current_time;
 
-        cloudsBuffer[lidar_idx] = msgIn;
-        if (first_lidar_time_ < 0) {
-            first_lidar_time_ = current_time;
-        }
+        tryProcessQueues();
+    }
 
-        bool all_filled = true;
-        for (int i = 0; i < num_lidars; i++) {
-            if (cloudsBuffer[i] == nullptr) {
-                all_filled = false;
-                break;
+    void tryProcessQueues() {
+        while (true) {
+            // 1. 找出所有佇列中「最老」的時間戳與它的索引
+            double oldest_time = std::numeric_limits<double>::max();
+            int oldest_idx = -1;
+            for (int i = 0; i < num_lidars; i++) {
+                if (!cloudsQueue[i].empty()) {
+                    double t = cloudsQueue[i].front()->header.stamp.sec + cloudsQueue[i].front()->header.stamp.nanosec * 1e-9;
+                    if (t < oldest_time) {
+                        oldest_time = t;
+                        oldest_idx = i;
+                    }
+                }
             }
-        }
+            // 如果全部佇列都是空的，直接結束
+            if (oldest_idx == -1) break;
 
-        if (all_filled) {
-            executeMerge();
-            first_lidar_time_ = -1.0;
+            // 2. 盤點當前落在「最老時間視窗」內的光達狀態
+            bool all_filled = true;      // 條件1：所有光達都到了
+            bool require_filled = true;  // 條件2：需求光達都到了
+            std::vector<bool> in_window(num_lidars, false);
+
+            for (int i = 0; i < num_lidars; i++) {
+                if (!cloudsQueue[i].empty()) {
+                    double t = cloudsQueue[i].front()->header.stamp.sec + cloudsQueue[i].front()->header.stamp.nanosec * 1e-9;
+                    if (t - oldest_time <= lidarSyncDelayWindow) {
+                        in_window[i] = true;
+                    } else {
+                        all_filled = false; // 在佇列中，但超過視窗 (屬於未來的幀)
+                    }
+                } else {
+                    all_filled = false;     // 根本還沒收到
+                }
+
+                // 檢查必備條件是否滿足
+                if (requireLidar[i] && !in_window[i]) {
+                    require_filled = false;
+                }
+            }
+
+            // 條件 1：所有光達都有資料了
+            if (all_filled) {
+                executeMergeFromQueues(in_window);
+                continue;
+            }
+
+            // 判斷是否已經超時 (依靠全域最新時間來推進)
+            bool is_timeout = (latest_global_time_ - oldest_time > lidarSyncDelayWindow);
+
+            if (is_timeout) {
+                if (require_filled) {
+                    // 條件 2：超時沒等到所有，但是需求的光達都到了 -> 輸出殘缺但合法的合併幀
+                    RCLCPP_WARN(this->get_logger(), "超時結算：可選光達缺失，但必備光達齊全，執行合併。");
+                    executeMergeFromQueues(in_window);
+                } else {
+                    // 條件 3：超時，且需求光達沒到 -> 僅替出(pop)最老的那一筆資料
+                    RCLCPP_WARN(this->get_logger(), "超時丟棄：必備光達未達標，丟棄最舊的點雲資料 (光達 %d)。", oldest_idx);
+                    cloudsQueue[oldest_idx].pop_front();
+                }
+                continue;
+            }
+
+            // 若既沒全員到齊，也沒有超時，就乖乖 break 出去等待下一筆新資料進來
+            break; 
         }
     }
 
-    void executeMerge() {
-        lio_sam::msg::CloudInfo::SharedPtr base_cloud = nullptr;
+    // 負責把 in_window 標記為 true 的點雲從佇列抽出，並送去合併
+    void executeMergeFromQueues(const std::vector<bool>& in_window) {
+        std::vector<lio_sam::msg::CloudInfo::SharedPtr> merge_candidates(num_lidars, nullptr);
+        
         for (int i = 0; i < num_lidars; i++) {
-            if (cloudsBuffer[i] != nullptr) {
-                base_cloud = cloudsBuffer[i];
-                break;
+            if (in_window[i]) {
+                merge_candidates[i] = cloudsQueue[i].front();
+                cloudsQueue[i].pop_front(); // 正式從 FIFO 佇列中移除
             }
         }
+        
+        executeMerge(merge_candidates);
+    }
+
+    void executeMerge(const std::vector<lio_sam::msg::CloudInfo::SharedPtr>& merge_candidates) {
+        lio_sam::msg::CloudInfo::SharedPtr base_cloud = nullptr;
+        int base_idx = -1;
+        
+        for (int i = 0; i < num_lidars; i++) {
+            if (merge_candidates[i] != nullptr) {
+                if (!base_cloud) {
+                    base_cloud = merge_candidates[i];
+                    base_idx = i;
+                    break;
+                }
+            }
+        }
+        
         if (!base_cloud) return;
 
         auto mergeMsg = std::make_shared<lio_sam::msg::CloudInfo>(*base_cloud);
         mergeMsg->header.frame_id = baselinkFrame;
+
+        try {
+            // 取得 base_link 到該基準 LiDAR 的 TF
+            geometry_msgs::msg::TransformStamped transform = 
+                tf_buffer_->lookupTransform(baselinkFrame, lidarFrames[base_idx], tf2::TimePointZero);
+            
+            tf2::Quaternion q_base_to_lidar;
+            tf2::fromMsg(transform.transform.rotation, q_base_to_lidar);
+
+            // LiDAR 自身記錄的世界姿態
+            tf2::Quaternion q_lidar_global;
+            q_lidar_global.setRPY(mergeMsg->imu_roll_init, mergeMsg->imu_pitch_init, mergeMsg->imu_yaw_init);
+
+            // 轉回 base_link 的真實絕對姿態： R_global_base = R_global_lidar * R_base_lidar^T
+            tf2::Quaternion q_base_global = q_lidar_global * q_base_to_lidar.inverse();
+
+            // 重新解算為正確的 RPY 並覆寫
+            double r, p, y;
+            tf2::Matrix3x3(q_base_global).getRPY(r, p, y);
+            
+            mergeMsg->imu_roll_init = r;
+            mergeMsg->imu_pitch_init = p;
+            mergeMsg->imu_yaw_init = y;
+        } catch (const tf2::TransformException & ex) {
+            RCLCPP_WARN(this->get_logger(), "無法轉換 IMU 姿態: %s", ex.what());
+        }
 
         pcl::PointCloud<PointType>::Ptr cornerMerge(new pcl::PointCloud<PointType>());
         pcl::PointCloud<PointType>::Ptr surfMerge(new pcl::PointCloud<PointType>());
@@ -498,15 +615,15 @@ private:
 
         #pragma omp parallel for num_threads(num_lidars)
         for (int i = 0; i < num_lidars; i++) {
-            if (cloudsBuffer[i] == nullptr) continue;
+            if (merge_candidates[i] == nullptr) continue;
 
             pcl::PointCloud<PointType>::Ptr tempCorner(new pcl::PointCloud<PointType>());
             pcl::PointCloud<PointType>::Ptr tempSurf(new pcl::PointCloud<PointType>());
             pcl::PointCloud<PointType>::Ptr tempDeskewed(new pcl::PointCloud<PointType>());
             
-            pcl::fromROSMsg(cloudsBuffer[i]->cloud_corner, *tempCorner);
-            pcl::fromROSMsg(cloudsBuffer[i]->cloud_surface, *tempSurf);
-            pcl::fromROSMsg(cloudsBuffer[i]->cloud_deskewed, *tempDeskewed);
+            pcl::fromROSMsg(merge_candidates[i]->cloud_corner, *tempCorner);
+            pcl::fromROSMsg(merge_candidates[i]->cloud_surface, *tempSurf);
+            pcl::fromROSMsg(merge_candidates[i]->cloud_deskewed, *tempDeskewed);
 
             try {
                 geometry_msgs::msg::TransformStamped transform = 
@@ -527,8 +644,6 @@ private:
             } catch (const tf2::TransformException & ex) {
                 RCLCPP_WARN(this->get_logger(), "找不到 TF: %s", ex.what());
             }
-
-            cloudsBuffer[i] = nullptr;
         }
 
         pcl::toROSMsg(*cornerMerge, mergeMsg->cloud_corner);
@@ -674,6 +789,11 @@ private:
                 if (bag_message->topic_name == imuTopic) {
                     auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
                     imu_ser.deserialize_message(&serialized_msg, imu_msg.get());
+                    
+                    rclcpp::Time original_time(imu_msg->header.stamp);
+                    rclcpp::Time offset_time = original_time + rclcpp::Duration::from_seconds(imuTimeOffset);
+                    imu_msg->header.stamp = offset_time;
+
                     processImuMsg(imu_msg);
                     
                     IMUP->imuHandler(imu_msg);
@@ -691,6 +811,8 @@ private:
                     int idx = std::distance(pointCloudTopics.begin(), it);
 
                     if (current_bag_time - (first_msg_time / 1e9) < skipLidarTopic)
+                        continue;
+                    if (procLidarTopic > 1e-6 && current_bag_time - (first_msg_time / 1e9) > skipLidarTopic + procLidarTopic)
                         continue;
 
                     auto pc_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();

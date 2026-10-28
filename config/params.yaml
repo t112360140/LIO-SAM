@@ -5,8 +5,8 @@
 
     # Topics
     pointCloudTopic: "/velodyne_points"          # Point cloud data
-    imuTopic: "/imu/data"                        # IMU data
-    # imuTopic: "/imu/data_raw"                    # IMU data
+    # imuTopic: "/imu/data"                        # IMU data
+    imuTopic: "/imu/data_raw"                    # IMU data
     odomTopic: "odometry/imu"                    # IMU pre-preintegration odometry, same frequency as IMU
     gpsTopic: "odometry/gpsz"                    # GPS odometry topic from navsat, see module_navsat.launch file
     
@@ -26,7 +26,7 @@
 
     # Export settings
     savePCD: false                               # https://github.com/TixiaoShan/LIO-SAM/issues/3
-    savePCDDirectory: "/MAP/LOAM/"               # in your home folder, starts and ends with "/". Warning: the code deletes "LOAM" folder then recreates it. See "mapOptimization" for implementation
+    savePCDDirectory: "/MAP/LOAM"               # in your home folder, starts and ends with "/". Warning: the code deletes "LOAM" folder then recreates it. See "mapOptimization" for implementation
     chuckSize: 0.0
     splitZ: true
     saveToPly: true                              # Only work in chuckSize <= 0.0
@@ -38,8 +38,8 @@
     Horizon_SCAN: 1800                           # lidar horizontal resolution (Velodyne:1800, Ouster:512,1024,2048, Livox Horizon: 4000)
     downsampleRate: 1                            # default: 1. Downsample your data if too many
     # points. i.e., 16 = 64 / 4, 16 = 16 / 1
-    lidarMinRange: 2.0                           # default: 1.0, minimum lidar range to be used
-    lidarMaxRange: 100.0                         # default: 1000.0, maximum lidar range to be used
+    lidarMinRange: 1.5                           # default: 1.0, minimum lidar range to be used
+    lidarMaxRange: 130.0                         # default: 1000.0, maximum lidar range to be used
 
     # IMU Settings
     imuAccNoise: 1.0e-1
@@ -51,21 +51,21 @@
     imuRPYWeight: 0.03
 
     # Extrinsics: T_lb (lidar -> imu)
-    extrinsicTrans: [0.0, 0.0, 0.0]
-    extrinsicRot: [1.0, 0.0, 0.0,
-                    0.0, 1.0, 0.0,
-                    0.0, 0.0, 1.0]
-    extrinsicRPY: [1.0, 0.0, 0.0,
-                    0.0, 1.0, 0.0,
-                    0.0, 0.0, 1.0]
+    # extrinsicTrans: [0.0, 0.0, 0.0]
+    # extrinsicRot: [1.0, 0.0, 0.0,
+    #                 0.0, 1.0, 0.0,
+    #                 0.0, 0.0, 1.0]
+    # extrinsicRPY: [1.0, 0.0, 0.0,
+    #                 0.0, 1.0, 0.0,
+    #                 0.0, 0.0, 1.0]
 
-    # extrinsicTrans: [1.05, 0.0, -1.52]
-    # extrinsicRot: [ 0.8773, -0.0110,  0.4797,
-    #               0.0135,  0.9999, -0.0017,
-    #              -0.4796,  0.0080,  0.8774]
-    # extrinsicRPY: [ 0.8773,  0.0135, -0.4796,
-    #              -0.0110,  0.9999,  0.0080,
-    #               0.4797, -0.0017,  0.8774]
+    extrinsicTrans: [1.30, 0.0, 0.6786]
+    extrinsicRot: [ 0.8780,  0.0000,  0.4786,
+                    0.0000,  1.0000,  0.0000,
+                   -0.4786,  0.0000,  0.8780]
+    extrinsicRPY: [ 0.8780,  0.0000, -0.4786,
+                    0.0000,  1.0000,  0.0000,
+                    0.4786,  0.0000,  0.8780]
 
     # Extrinsics: T_lb (base_link -> imu)(Multi Lidar)
     # extrinsicTrans: [0.0, 0.0, 0.0]
@@ -83,9 +83,9 @@
     surfFeatureMinValidNum: 100
 
     # voxel filter paprams
-    odometrySurfLeafSize: 0.2                    # default: 0.4 - outdoor, 0.2 - indoor
-    mappingCornerLeafSize: 0.1                   # default: 0.2 - outdoor, 0.1 - indoor
-    mappingSurfLeafSize: 0.2                     # default: 0.4 - outdoor, 0.2 - indoor
+    odometrySurfLeafSize: 0.4                    # default: 0.4 - outdoor, 0.2 - indoor
+    mappingCornerLeafSize: 0.2                   # default: 0.2 - outdoor, 0.1 - indoor
+    mappingSurfLeafSize: 0.4                     # default: 0.4 - outdoor, 0.2 - indoor
     
     # robot motion constraint (in case you are using a 2D robot)
     z_tollerance: 1000.0                          # meters
@@ -114,7 +114,7 @@
     # considered for loop closure
     historyKeyframeSearchNum: 25                  # number of hostory key frames will be fused into a
     # submap for loop closure
-    historyKeyframeFitnessScore: 1.00             # icp threshold, the smaller the better alignment
+    historyKeyframeFitnessScore: 0.3              # icp threshold, the smaller the better alignment
     
     loopClosureOptmizationIters: 5
 
@@ -128,7 +128,7 @@
     # Visualization
     globalMapVisualizationSearchRadius: 10000.0    # meters, global map visualization radius
     globalMapVisualizationPoseDensity: 10.0        # meters, global map visualization keyframe density
-    globalMapVisualizationLeafSize: 1.5           # meters, global map visualization cloud density
+    globalMapVisualizationLeafSize: 1.0           # meters, global map visualization cloud density
 
 
     # Offline
@@ -139,6 +139,7 @@
     minIntensity: 0.0
     publishBagTF: true
     skipLidarTopic: 0.0     # skip lidar topic before n sec
+    procLidarTopic: 0.0    # skip lidar topic before n sec
 
 
     saveFullKeyFrame: false
@@ -146,7 +147,7 @@
 
 
     # Point Colorization
-    enableColorization: true
+    enableColorization: false
     useCompressedImages: true
     useCudaColorization: false  # 並沒有幫助會更慢
 
@@ -182,7 +183,7 @@
 
 
     # IMU tools
-    use_complementary_filter: false
+    use_complementary_filter: true
     gain_acc: 0.01
     gain_mag: 0.01
     bias_alpha: 0.01
@@ -190,30 +191,40 @@
     do_adaptive_gain: true
     # use_mag: false # 目前沒有用途，需要添加 mag topic 同步
 
+    imuTimeOffset: 0.0
+
 
     # Multi Lidar
     pointCloudTopics:                          # Point cloud datas
-      - "/velodyne_points"
+      - "/top/velodyne_points"
+      - "/right/velodyne_points"
+      - "/left/velodyne_points"
       # - "/lidar_L/velodyne_points"
       # - "/lidar_R/velodyne_points"
       # - "/lidar_LL/velodyne_points"
       # - "/lidar_RR/velodyne_points"
       # - "/lidar_MID/velodyne_points"
     lidarFrames:
-      - "velodyne"
+      - "velodyne_top"
+      - "velodyne_right"
+      - "velodyne_left"
       # - "velodyne_L"
       # - "velodyne_R"
       # - "velodyne_LL"
       # - "velodyne_RR"
       # - "velodyne_MID"
+    requireLidar: 
+      - true
+      - false
+      - false
 
-    lidarSyncDelayWindow: 0.03
+    lidarSyncDelayWindow: 0.1
 
 
     # Static TF (parent, child, x, y, z, roll, pitch, yaw)
     static_tfs:
-      # - "parent_link, child_link,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0"
-      - "base_link, velodyne,      0.0000,  0.0000, 0.0000,   0.0000,  0.0000,  0.0000"
+      - "parent_link, child_link,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0"
+      # - "base_link, velodyne,      0.0000,  0.0000, 0.0000,   0.0000,  0.0000,  0.0000"
       # - "base_link, velodyne_L,    0.0000,  0.1594, 0.3200,   0.0000,  0.0000,  0.0000"
       # - "base_link, velodyne_R,    0.0576, -0.1594, 0.2921,  -0.0004,  0.0459,  0.0091"
       # - "base_link, velodyne_LL,  -0.0241,  0.8124, 0.0957,  -0.7729,  0.0047,  0.0241"
