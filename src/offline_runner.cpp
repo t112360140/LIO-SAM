@@ -376,7 +376,7 @@ public:
                 
                 res.set_content(
                     reinterpret_cast<const char*>(cloud_data.data()), 
-                    cloud_data.size() * sizeof(cloud_data), 
+                    cloud_data.size() * sizeof(decltype(cloud_data)::value_type), 
                     "application/octet-stream"
                 );
             });
@@ -581,6 +581,8 @@ private:
         ip.pointCloudTopic = cfg.topic;
         ip.lidarFrame = cfg.frame;
         fe.lidarFrame = cfg.frame;
+
+        ip.cloudCacheFrames = 5;    // offline全速回放時提供IMU提前量(每幀約 0.1s)
 
         bool geom_changed = false;
 

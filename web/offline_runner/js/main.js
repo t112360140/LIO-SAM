@@ -11,7 +11,7 @@ let loopInterval;
 // 定期抓取狀態
 let processing = false;
 setInterval(() => {
-    fetch('/status').then(r => r.json()).then(data => {
+    fetch('/status', {signal: AbortSignal.timeout(1000)}).then(r => r.json()).then(data => {
         document.getElementById('bar').style.width = data.progress + '%';
         document.getElementById('bar').innerText = data.progress.toFixed(1) + '%';
         document.getElementById('msg').innerText = data.current + ' / ' + data.total;
@@ -140,7 +140,7 @@ window.addEventListener('resize', () => {
 // 定期拉取並更新軌跡
 async function updateTrajectoryPath() {
     try {
-        const response = await fetch('/path');
+        const response = await fetch('/path', {signal: AbortSignal.timeout(1000)});
         if (!response.ok) return;
         
         const arrayBuffer = await response.arrayBuffer();
@@ -196,7 +196,7 @@ startPathUpdate();
 async function updateLoopEdges() {
     if (!showLoopEdges) return;
     try {
-        const response = await fetch('/loop_indices');
+        const response = await fetch('/loop_indices', {signal: AbortSignal.timeout(1000)});
         if (!response.ok) return;
         
         const arrayBuffer = await response.arrayBuffer();
@@ -305,7 +305,7 @@ async function loadPointCloudPreview() {
         currentPointCloud = new THREE.Points(geometry, material);
         scene.add(currentPointCloud);
         
-        console.log(`成功載入全局點雲！總共 ${floatArray.length / 6} 個點。`);
+        console.log(`成功載入全局點雲！總共 ${floatArray.length / 4} 個點。`);
     } catch (error) {
         console.error("載入點雲失敗:", error);
         alert("載入點雲失敗，請確保 LIO-SAM 正在運行中。");

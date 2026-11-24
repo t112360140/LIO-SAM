@@ -8,7 +8,7 @@
     # imuTopic: "/imu/data"                        # IMU data
     imuTopic: "/imu/data_raw"                    # IMU data
     odomTopic: "odometry/imu"                    # IMU pre-preintegration odometry, same frequency as IMU
-    gpsTopic: "odometry/gpsz"                    # GPS odometry topic from navsat, see module_navsat.launch file
+    gpsTopic: "odometry/gps"                     # GPS odometry topic from navsat, see module_navsat.launch file
     
     keyframeTopic: "/key_frame"
 
@@ -131,7 +131,8 @@
     globalMapVisualizationLeafSize: 1.0           # meters, global map visualization cloud density
 
 
-    # Offline
+
+    # 底下參數 Offline mode 才會使用
     loopClosureThread: true
     logInterval: 5.0
     enable_web: true
@@ -223,6 +224,12 @@
       topic: "/top/velodyne_points"
       frame: "velodyne_top"
       require: true
+      sensor: velodyne
+      N_SCAN: 16
+      Horizon_SCAN: 1800
+      downsampleRate: 1
+      lidarMinRange: 1.5
+      lidarMaxRange: 130.0
     right_lidar:
       topic: "/right/velodyne_points"
       frame: "velodyne_right"

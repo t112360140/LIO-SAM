@@ -2031,6 +2031,9 @@ public:
         catch (const gtsam::IndeterminantLinearSystemException& e) {
             RCLCPP_ERROR(rclcpp::get_logger("mapOptimization"), 
                         "\033[1;31m[GTSAM ERROR]\033[0m 偵測到約束不足/奇異矩陣！跳過此幀 ISAM 更新。錯誤變數: %s", e.what());
+            gtSAMgraph.resize(0);
+            initialEstimate.clear();
+            return;
         }
 
         gtSAMgraph.resize(0);
@@ -2355,56 +2358,94 @@ public:
     {
         std::vector<PointXYZRGBA> buffer;
 
-        if (cloudKeyPoses3D->points.empty() == true)
+        pcl::PointCloud<PointType>::Ptr localKeyPoses3D(new pcl::PointCloud<PointType>());
+        pcl::PointCloud<PointTypePose>::Ptr localKeyPoses6D(new pcl::PointCloud<PointTypePose>());
+        std::vector<pcl::PointCloud<PointType>::Ptr> localCornerKeyFrames;
+        std::vector<pcl::PointCloud<PointType>::Ptr> localSurfKeyFrames;
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            if (cloudKeyPoses3D->points.empty())
+                return buffer;
+
+            *localKeyPoses3D = *cloudKeyPoses3D;
+            *localKeyPoses6D = *cloudKeyPoses6D;
+            localCornerKeyFrames = cornerCloudKeyFrames;
+            localSurfKeyFrames   = surfCloudKeyFrames;
+        }
+
+        size_t validSize = std::min(
+            std::min(localKeyPoses3D->size(), localKeyPoses6D->size()),
+            std::min(localCornerKeyFrames.size(), localSurfKeyFrames.size())
+        );
+        if (validSize == 0)
             return buffer;
 
-        pcl::KdTreeFLANN<PointType>::Ptr kdtreeGlobalMap(new pcl::KdTreeFLANN<PointType>());;
+        pcl::KdTreeFLANN<PointType>::Ptr kdtreeGlobalMap(new pcl::KdTreeFLANN<PointType>());
         pcl::PointCloud<PointType>::Ptr globalMapKeyPoses(new pcl::PointCloud<PointType>());
         pcl::PointCloud<PointType>::Ptr globalMapKeyPosesDS(new pcl::PointCloud<PointType>());
         pcl::PointCloud<PointType>::Ptr globalMapKeyFrames(new pcl::PointCloud<PointType>());
         pcl::PointCloud<PointType>::Ptr globalMapKeyFramesDS(new pcl::PointCloud<PointType>());
 
-        // kd-tree to find near key frames to visualize
         std::vector<int> pointSearchIndGlobalMap;
         std::vector<float> pointSearchSqDisGlobalMap;
-        // search near key frames to visualize
-        mtx.lock();
-        kdtreeGlobalMap->setInputCloud(cloudKeyPoses3D);
-        kdtreeGlobalMap->radiusSearch(cloudKeyPoses3D->back(), globalMapVisualizationSearchRadius, pointSearchIndGlobalMap, pointSearchSqDisGlobalMap, 0);
-        mtx.unlock();
+        kdtreeGlobalMap->setInputCloud(localKeyPoses3D);
+        kdtreeGlobalMap->radiusSearch(
+            localKeyPoses3D->back(),
+            globalMapVisualizationSearchRadius,
+            pointSearchIndGlobalMap,
+            pointSearchSqDisGlobalMap,
+            0
+        );
 
         for (int i = 0; i < (int)pointSearchIndGlobalMap.size(); ++i)
-            globalMapKeyPoses->push_back(cloudKeyPoses3D->points[pointSearchIndGlobalMap[i]]);
+            globalMapKeyPoses->push_back(localKeyPoses3D->points[pointSearchIndGlobalMap[i]]);
+
         // downsample near selected key frames
-        pcl::VoxelGrid<PointType> downSizeFilterGlobalMapKeyPoses; // for global map visualization
-        downSizeFilterGlobalMapKeyPoses.setLeafSize(globalMapVisualizationPoseDensity, globalMapVisualizationPoseDensity, globalMapVisualizationPoseDensity); // for global map visualization
+        pcl::VoxelGrid<PointType> downSizeFilterGlobalMapKeyPoses;
+        downSizeFilterGlobalMapKeyPoses.setLeafSize(
+            globalMapVisualizationPoseDensity,
+            globalMapVisualizationPoseDensity,
+            globalMapVisualizationPoseDensity
+        );
         downSizeFilterGlobalMapKeyPoses.setInputCloud(globalMapKeyPoses);
         downSizeFilterGlobalMapKeyPoses.filter(*globalMapKeyPosesDS);
-        for(auto& pt : globalMapKeyPosesDS->points)
+
+        for (auto& pt : globalMapKeyPosesDS->points)
         {
             kdtreeGlobalMap->nearestKSearch(pt, 1, pointSearchIndGlobalMap, pointSearchSqDisGlobalMap);
-            pt.intensity = cloudKeyPoses3D->points[pointSearchIndGlobalMap[0]].intensity;
+            pt.intensity = localKeyPoses3D->points[pointSearchIndGlobalMap[0]].intensity;
         }
 
         // extract visualized and downsampled key frames
-        for (int i = 0; i < (int)globalMapKeyPosesDS->size(); ++i){
-            if (pointDistance(globalMapKeyPosesDS->points[i], cloudKeyPoses3D->back()) > globalMapVisualizationSearchRadius)
+        for (int i = 0; i < (int)globalMapKeyPosesDS->size(); ++i)
+        {
+            if (pointDistance(globalMapKeyPosesDS->points[i], localKeyPoses3D->back()) > globalMapVisualizationSearchRadius)
                 continue;
             int thisKeyInd = (int)globalMapKeyPosesDS->points[i].intensity;
-            *globalMapKeyFrames += *transformPointCloud(cornerCloudKeyFrames[thisKeyInd],  &cloudKeyPoses6D->points[thisKeyInd]);
-            *globalMapKeyFrames += *transformPointCloud(surfCloudKeyFrames[thisKeyInd],    &cloudKeyPoses6D->points[thisKeyInd]);
+            if (thisKeyInd < 0 || (size_t)thisKeyInd >= validSize)
+                continue;
+
+            *globalMapKeyFrames += *transformPointCloud(localCornerKeyFrames[thisKeyInd], &localKeyPoses6D->points[thisKeyInd]);
+            *globalMapKeyFrames += *transformPointCloud(localSurfKeyFrames[thisKeyInd],   &localKeyPoses6D->points[thisKeyInd]);
         }
+
+        if (globalMapKeyFrames->empty())
+            return buffer;
+
         // downsample visualized points
-        pcl::VoxelGrid<PointType> downSizeFilterGlobalMapKeyFrames; // for global map visualization
-        downSizeFilterGlobalMapKeyFrames.setLeafSize(globalMapVisualizationLeafSize, globalMapVisualizationLeafSize, globalMapVisualizationLeafSize); // for global map visualization
+        pcl::VoxelGrid<PointType> downSizeFilterGlobalMapKeyFrames;
+        downSizeFilterGlobalMapKeyFrames.setLeafSize(
+            globalMapVisualizationLeafSize,
+            globalMapVisualizationLeafSize,
+            globalMapVisualizationLeafSize
+        );
         downSizeFilterGlobalMapKeyFrames.setInputCloud(globalMapKeyFrames);
         downSizeFilterGlobalMapKeyFrames.filter(*globalMapKeyFramesDS);
 
-        
         auto filterInvalidColor = [](pcl::PointCloud<PointType>::Ptr cloudIn) {
             pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
             for (const auto& p : cloudIn->points) {
-                if (!((p.r == 0 && p.g == 0 && p.b == 0) || p.a == 0 )) {
+                if (!((p.r == 0 && p.g == 0 && p.b == 0) || p.a == 0)) {
                     cloudOut->push_back(p);
                 }
             }
@@ -2415,24 +2456,24 @@ public:
         if (useColor)
             globalMapKeyFramesDS = filterInvalidColor(globalMapKeyFramesDS);
 
-        buffer.reserve(globalMapKeyFramesDS->size() * 6);
+        buffer.reserve(globalMapKeyFramesDS->size());
 
         for (const auto& pt : globalMapKeyFramesDS->points) {
-        PointXYZRGBA p;
-        p.x = pt.x;
-        p.y = pt.y;
-        p.z = pt.z;
-        p.a = 255;
-        
-        if (useColor) {
-            p.r = pt.r;
-            p.g = pt.g;
-            p.b = pt.b;
-        } else {
-            getPseudoColor(pt.intensity, minIntensity, maxIntensity, p.r, p.g, p.b);
+            PointXYZRGBA p;
+            p.x = pt.x;
+            p.y = pt.y;
+            p.z = pt.z;
+            p.a = 255;
+
+            if (useColor) {
+                p.r = pt.r;
+                p.g = pt.g;
+                p.b = pt.b;
+            } else {
+                getPseudoColor(pt.intensity, minIntensity, maxIntensity, p.r, p.g, p.b);
+            }
+            buffer.push_back(p);
         }
-        buffer.push_back(p);
-    }
 
         return buffer;
     }
@@ -2440,8 +2481,9 @@ public:
     std::vector<float> globalPathToArray()
     {
         std::vector<float> buffer;
+        std::lock_guard<std::mutex> lock(mtx);
 
-        if (cloudKeyPoses3D->points.empty() == true)
+        if (cloudKeyPoses3D->points.empty())
             return buffer;
 
         buffer.reserve(cloudKeyPoses3D->size() * 3);

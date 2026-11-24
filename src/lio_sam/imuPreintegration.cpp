@@ -295,6 +295,7 @@ public:
     void resetParams()
     {
         lastImuT_imu = -1;
+        lastImuT_opt = -1;
         doneFirstOpt = false;
         systemInitialized = false;
     }
@@ -359,6 +360,9 @@ public:
             catch (const gtsam::IndeterminantLinearSystemException& e) {
                 RCLCPP_ERROR(rclcpp::get_logger("imuPreintegration"), 
                             "\033[1;31m[GTSAM IMU ERROR]\033[0m IMU 預積分優化矩陣奇異！跳過此幀。錯誤訊息: %s", e.what());
+                graphFactors.resize(0);
+                graphValues.clear();
+                return;
             }
             graphFactors.resize(0);
             graphValues.clear();
@@ -401,6 +405,10 @@ public:
             catch (const gtsam::IndeterminantLinearSystemException& e) {
                 RCLCPP_ERROR(rclcpp::get_logger("imuPreintegration"), 
                             "\033[1;31m[GTSAM IMU ERROR]\033[0m IMU 預積分優化矩陣奇異！跳過此幀。錯誤訊息: %s", e.what());
+                graphFactors.resize(0);
+                graphValues.clear();
+                resetParams();
+                return;
             }
             graphFactors.resize(0);
             graphValues.clear();
@@ -430,6 +438,12 @@ public:
             else
                 break;
         }
+
+        if (imuIntegratorOpt_->deltaTij() <= 1e-5) {
+            RCLCPP_WARN(get_logger(), "IMU 預積分區間無資料 (deltaTij == 0)，跳過此幀優化");
+            return;
+        }
+
         // add imu factor to graph
         const gtsam::PreintegratedImuMeasurements& preint_imu = dynamic_cast<const gtsam::PreintegratedImuMeasurements&>(*imuIntegratorOpt_);
         gtsam::ImuFactor imu_factor(X(key - 1), V(key - 1), X(key), V(key), B(key - 1), preint_imu);
@@ -454,6 +468,10 @@ public:
         catch (const gtsam::IndeterminantLinearSystemException& e) {
             RCLCPP_ERROR(rclcpp::get_logger("imuPreintegration"), 
                         "\033[1;31m[GTSAM IMU ERROR]\033[0m IMU 預積分優化矩陣奇異！跳過此幀。錯誤訊息: %s", e.what());
+            graphFactors.resize(0);
+            graphValues.clear();
+            resetParams(); // 讓下一幀重新初始化 ISAM2
+            return;
         }
         graphFactors.resize(0);
         graphValues.clear();

@@ -119,6 +119,8 @@ public:
     
     std::function<void(const lio_sam::msg::CloudInfo::SharedPtr)> direct_cloud_info_callback;
 
+    int cloudCacheFrames = 2;
+
     void setCloudInfoCallback(std::function<void(const lio_sam::msg::CloudInfo::SharedPtr)> cb) {
         direct_cloud_info_callback = cb;
     }
@@ -257,7 +259,7 @@ public:
     {
         // cache point cloud
         cloudQueue.push_back(*laserCloudMsg);
-        if (cloudQueue.size() <= 2)
+        if (cloudQueue.size() <= (size_t)cloudCacheFrames)
             return false;
 
         // convert cloud
