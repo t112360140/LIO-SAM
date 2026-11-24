@@ -62,9 +62,31 @@ public:
 
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
+    bool enableColorization = false;
+    bool useCudaColorization = false;
+    float lidarColorMaxRange = 100.0f;
+    float cameraDelay = 0.0f;
+    float cameraSyncDelayWindow = 0.06f;
+    std::vector<std::string> imageTopics;
+    std::vector<std::string> cameraInfoTopics;
+    std::vector<std::string> cameraFrameIds;
+
     PointColorization(const rclcpp::NodeOptions & options) : ParamServer("lio_sam_pointColorization", options)
     {
+    }
+
+    void init()
+    {
         int num_cams = imageTopics.size();
+        if (cameraFrameIds.size() < (size_t)num_cams) {
+            RCLCPP_WARN(this->get_logger(),
+                "相機 Frame 數量 (%zu) 少於 Image Topic 數量 (%d)，缺失的將以相機名稱代替！",
+                cameraFrameIds.size(), num_cams);
+            while (cameraFrameIds.size() < (size_t)num_cams) {
+                cameraFrameIds.push_back("camera_" + std::to_string(cameraFrameIds.size()));
+            }
+        }
+
         image_caches_.resize(num_cams);
         camera_models_.resize(num_cams);
         camera_infos_.resize(num_cams);

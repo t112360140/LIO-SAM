@@ -38,9 +38,9 @@ public:
     std_msgs::msg::Header cloudHeader;
 
     std::vector<smoothness_t> cloudSmoothness;
-    float *cloudCurvature;
-    int *cloudNeighborPicked;
-    int *cloudLabel;
+    float *cloudCurvature = nullptr;
+    int *cloudNeighborPicked = nullptr;
+    int *cloudLabel = nullptr;
 
     FeatureExtraction(const rclcpp::NodeOptions & options) :
         ParamServer("lio_sam_featureExtraction", options)

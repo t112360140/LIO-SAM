@@ -156,30 +156,44 @@
     cameraDelay: -0.07
     cameraSyncDelayWindow: 0.06
 
-    imageTopics:
-      - "/usb_cam_1/image_raw/compressed"
-      # - "/usb_cam1/image_raw/compressed"
-      # - "/usb_cam2/image_raw/compressed"
-      # - "/usb_cam3/image_raw/compressed"
-      # - "/usb_cam4/image_raw/compressed"
-      # - "/usb_cam5/image_raw/compressed"
-      # - "/usb_cam6/image_raw/compressed"
-    cameraInfoTopics:
-      - "/usb_cam_1/camera_info"
-      # - "/usb_cam1/camera_info"
-      # - "/usb_cam2/camera_info"
-      # - "/usb_cam3/camera_info"
-      # - "/usb_cam4/camera_info"
-      # - "/usb_cam5/camera_info"
-      # - "/usb_cam6/camera_info"
-    cameraFrameIds:
-      - "camera_link"
-      # - "camera_1"
-      # - "camera_2"
-      # - "camera_3"
-      # - "camera_4"
-      # - "camera_5"
-      # - "camera_6"
+
+    cameras:
+      - cam_1
+      # - cam_2
+      # - cam_3
+      # - cam_4
+      # - cam_5
+      # - cam_6
+
+    cam_1:
+      image_topic: "/usb_cam_1/image_raw/compressed"
+      info_topic: "/usb_cam_1/camera_info"
+      frame: "camera_link"
+    # cam_1:
+    #   image_topic: "/usb_cam1/image_raw/compressed"
+    #   info_topic: "/usb_cam1/camera_info"
+    #   frame: "camera_1"
+    # cam_2:
+    #   image_topic: "/usb_cam2/image_raw/compressed"
+    #   info_topic: "/usb_cam2/camera_info"
+    #   frame: "camera_2"
+    # cam_3:
+    #   image_topic: "/usb_cam3/image_raw/compressed"
+    #   info_topic: "/usb_cam3/camera_info"
+    #   frame: "camera_3"
+    # cam_4:
+    #   image_topic: "/usb_cam4/image_raw/compressed"
+    #   info_topic: "/usb_cam4/camera_info"
+    #   frame: "camera_4"
+    # cam_5:
+    #   image_topic: "/usb_cam5/image_raw/compressed"
+    #   info_topic: "/usb_cam5/camera_info"
+    #   frame: "camera_5"
+    # cam_6:
+    #   image_topic: "/usb_cam6/image_raw/compressed"
+    #   info_topic: "/usb_cam6/camera_info"
+    #   frame: "camera_6"
+
 
 
     # IMU tools
@@ -195,31 +209,50 @@
 
 
     # Multi Lidar
-    pointCloudTopics:                          # Point cloud datas
-      - "/top/velodyne_points"
-      - "/right/velodyne_points"
-      - "/left/velodyne_points"
-      # - "/lidar_L/velodyne_points"
-      # - "/lidar_R/velodyne_points"
-      # - "/lidar_LL/velodyne_points"
-      # - "/lidar_RR/velodyne_points"
-      # - "/lidar_MID/velodyne_points"
-    lidarFrames:
-      - "velodyne_top"
-      - "velodyne_right"
-      - "velodyne_left"
-      # - "velodyne_L"
-      # - "velodyne_R"
-      # - "velodyne_LL"
-      # - "velodyne_RR"
-      # - "velodyne_MID"
-    requireLidar: 
-      - true
-      - false
-      - false
+    lidars:
+      - top_lidar
+      - right_lidar
+      - left_lidar
+      # - lidar_L
+      # - lidar_R
+      # - lidar_LL
+      # - lidar_RR
+      # - lidar_MID
 
-    lidarSyncDelayWindow: 0.1
+    top_lidar:
+      topic: "/top/velodyne_points"
+      frame: "velodyne_top"
+      require: true
+    right_lidar:
+      topic: "/right/velodyne_points"
+      frame: "velodyne_right"
+      require: false
+    left_lidar:
+      topic: "/left/velodyne_points"
+      frame: "velodyne_left"
+      require: false
+    # lidar_L:
+    #   topic: "/lidar_L/velodyne_points"
+    #   frame: "velodyne_L"
+    #   require: true
+    # lidar_R:
+    #   topic: "/lidar_R/velodyne_points"
+    #   frame: "velodyne_R"
+    #   require: false
+    # lidar_LL:
+    #   topic: "/lidar_LL/velodyne_points"
+    #   frame: "velodyne_LL"
+    #   require: false
+    # lidar_RR:
+    #   topic: "/lidar_RR/velodyne_points"
+    #   frame: "velodyne_RR"
+    #   require: false
+    # lidar_MID:
+    #   topic: "/lidar_MID/velodyne_points"
+    #   frame: "velodyne_MID"
+    #   require: false
 
+    lidarSyncDelayWindow: 0.15
 
     # Static TF (parent, child, x, y, z, roll, pitch, yaw)
     static_tfs:

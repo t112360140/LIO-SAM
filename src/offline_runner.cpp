@@ -65,29 +65,62 @@ public:
     OfflineRunner(const rclcpp::NodeOptions &options, const std::string &bag_path) 
         : ParamServer("lio_sam_offline_runner", options) 
     {
-        this->declare_parameter("pointCloudTopics", std::vector<std::string>());
-        this->get_parameter("pointCloudTopics", pointCloudTopics);
-        this->declare_parameter("lidarFrames", std::vector<std::string>());
-        this->get_parameter("lidarFrames", lidarFrames);
-        this->declare_parameter("requireLidar", std::vector<bool>());
-        this->get_parameter("requireLidar", requireLidar);
+        this->declare_parameter("enable_web", false);
+        this->get_parameter("enable_web", enable_web);
+        this->declare_parameter("maxIntensity", 255.0);
+        this->get_parameter("maxIntensity", maxIntensity);
+        this->declare_parameter("minIntensity", 0.0);
+        this->get_parameter("minIntensity", minIntensity);
+        
+        this->declare_parameter("saveFullKeyFrame", false);
+        this->get_parameter("saveFullKeyFrame", saveFullKeyFrame);
+        this->declare_parameter("saveFrameDirectory", "/Downloads/FRAME/");
+        this->get_parameter("saveFrameDirectory", saveFrameDirectory);
+        
+        this->declare_parameter("loopClosureThread", true);
+        this->get_parameter("loopClosureThread", loopClosureThread);
+        this->declare_parameter("logInterval", 5.0);
+        this->get_parameter("logInterval", logInterval);
+
+        this->declare_parameter("enableColorization", false);
+        this->get_parameter("enableColorization", enableColorization);
+        this->declare_parameter("useCudaColorization", false);
+        this->get_parameter("useCudaColorization", useCudaColorization);
+        this->declare_parameter("useCompressedImages", false);
+        this->get_parameter("useCompressedImages", useCompressedImages);
+
         this->declare_parameter("lidarSyncDelayWindow", 0.01);
         this->get_parameter("lidarSyncDelayWindow", lidarSyncDelayWindow);
         this->declare_parameter("imuTimeOffset", 0.0);
         this->get_parameter("imuTimeOffset", imuTimeOffset);
 
-        if (pointCloudTopics.size() != lidarFrames.size() || pointCloudTopics.empty()) {
+        this->declare_parameter("cameraDelay", 0.0);
+        this->get_parameter("cameraDelay", cameraDelay);
+        this->declare_parameter("cameraSyncDelayWindow", 0.06);
+        this->get_parameter("cameraSyncDelayWindow", cameraSyncDelayWindow);
+
+        this->declare_parameter("lidarColorMaxRange", 100.0);
+        this->get_parameter("lidarColorMaxRange", lidarColorMaxRange);
+
+        parseLidarConfigs();
+        parseCameraConfigs();
+
+        num_lidars = (int)lidar_configs_.size();
+        if (num_lidars == 0) {
             RCLCPP_ERROR(this->get_logger(), 
-                "\033[1;31m[CONFIG ERROR]\033[0m 光達 Topic 數量 (%zu) 與 Frame 數量 (%zu) 不一致或為空！", 
-                pointCloudTopics.size(), lidarFrames.size());
+                "\033[1;31m[CONFIG ERROR]\033[0m 未偵測到任何光達配置！");
             rclcpp::shutdown();
             return;
         }
-        num_lidars = pointCloudTopics.size();
-        RCLCPP_INFO(this->get_logger(), "成功偵測到 %d 顆光達配置，開始初始化...", num_lidars);
 
-        while(requireLidar.size()<num_lidars) {
-            requireLidar.push_back(false);
+        RCLCPP_INFO(this->get_logger(), "成功偵測到 %d 顆光達配置，開始初始化...", num_lidars);
+        pointCloudTopics.clear();
+        lidarFrames.clear();
+        requireLidar.clear();
+        for (const auto& cfg : lidar_configs_) {
+            pointCloudTopics.push_back(cfg.topic);
+            lidarFrames.push_back(cfg.frame);
+            requireLidar.push_back(cfg.require);
         }
 
         pubDebugStatus = create_publisher<std_msgs::msg::String>("lio_sam/deebug/status", 1);
@@ -155,9 +188,7 @@ public:
             IPs[i] = std::make_shared<ImageProjection>(options);
             FEs[i] = std::make_shared<FeatureExtraction>(options);
 
-            IPs[i]->pointCloudTopic = pointCloudTopics[i];
-            IPs[i]->lidarFrame = lidarFrames[i];
-            FEs[i]->lidarFrame = lidarFrames[i]; 
+            applyLidarConfig(*IPs[i], *FEs[i], lidar_configs_[i]); 
 
             IPs[i]->setCloudInfoCallback([this, i](const lio_sam::msg::CloudInfo::SharedPtr msg) { 
                 FEs[i]->laserCloudInfoHandler(msg); 
@@ -171,6 +202,16 @@ public:
         
         PC = std::make_shared<PointColorization>(options);
         PC->tf_buffer_ = this->tf_buffer_;
+        
+        PC->enableColorization = enableColorization;
+        PC->useCudaColorization = useCudaColorization;
+        PC->lidarColorMaxRange = lidarColorMaxRange;
+        PC->cameraDelay = cameraDelay;
+        PC->cameraSyncDelayWindow = cameraSyncDelayWindow;
+        PC->imageTopics = imageTopics;
+        PC->cameraInfoTopics = cameraInfoTopics;
+        PC->cameraFrameIds = cameraFrameIds;
+        PC->init();
 
         IMUP = std::make_shared<IMUPreintegration>(options);
 
@@ -180,8 +221,19 @@ public:
 
         MO = std::make_shared<mapOptimization>(options);
         MO->tf_buffer_ = this->tf_buffer_;
+
+        MO->enableColorization = enableColorization;
+        MO->saveFullKeyFrame = saveFullKeyFrame;
+        MO->saveFrameDirectory = saveFrameDirectory;
+        MO->maxIntensity = maxIntensity;
+        MO->minIntensity = minIntensity;
         
-        int max_feature_size = N_SCAN * Horizon_SCAN * num_lidars;
+        int max_feature_size = 0;
+        for (const auto& cfg : lidar_configs_) {
+            int n_scan = (cfg.N_SCAN > 0) ? cfg.N_SCAN : N_SCAN;
+            int horizon_scan = (cfg.Horizon_SCAN > 0) ? cfg.Horizon_SCAN : Horizon_SCAN;
+            max_feature_size += n_scan * horizon_scan;
+        }
         MO->laserCloudOriCornerVec.resize(max_feature_size);
         MO->coeffSelCornerVec.resize(max_feature_size);
         MO->laserCloudOriCornerFlag.resize(max_feature_size, false);
@@ -360,10 +412,59 @@ private:
 
     bool publishBagTF;
 
-    std::vector<std::string> pointCloudTopics;
-    std::vector<std::string> lidarFrames;
-    std::vector<bool> requireLidar;
+
+    // params
+    bool enable_web;
+    float maxIntensity;
+    float minIntensity;
+
+    bool loopClosureThread;
+    float logInterval;
+    
+    bool saveFullKeyFrame;
+    string saveFrameDirectory;
+
+    vector<string> pointCloudTopics;
+    vector<string> lidarFrames;
+    vector<bool> requireLidar;
+
+    // pointColorization
+    bool enableColorization;
+    bool useCudaColorization;
+    bool useCompressedImages;
+    float lidarColorMaxRange;
+    vector<string> imageTopics;
+    vector<string> cameraInfoTopics;
+    vector<string> cameraFrameIds;
+    float cameraDelay;
+    float cameraSyncDelayWindow;
+
+    // ===== 結構化感測器設定 =====
+    struct LidarConfig {
+        std::string name;
+        std::string topic;
+        std::string frame;
+        bool require = false;
+        std::string sensor;
+        int N_SCAN = -1;
+        int Horizon_SCAN = -1;
+        int downsampleRate = -1;
+        double lidarMinRange = -1.0;
+        double lidarMaxRange = -1.0;
+    };
+
+    struct CameraConfig {
+        std::string name;
+        std::string image_topic;
+        std::string info_topic;
+        std::string frame;
+    };
+
+    std::vector<LidarConfig> lidar_configs_;
+    std::vector<CameraConfig> camera_configs_;
+
     float lidarSyncDelayWindow;
+
     int num_lidars = 0;
 
     bool use_complementary_filter_ = false;
@@ -391,6 +492,137 @@ private:
         std::lock_guard<std::mutex> lock(status_mtx);
         current_status = status;
         publishStatus(status);
+    }
+
+    template <typename T>
+    T get_param_or(const std::string& name, const T& fallback) {
+        if (!has_parameter(name)) {
+            declare_parameter<T>(name, fallback);
+        }
+        T val = fallback;
+        get_parameter(name, val);
+        return val;
+    }
+
+    static SensorType parseSensorType(const std::string& s) {
+        if (s == "velodyne") return SensorType::VELODYNE;
+        if (s == "livox")    return SensorType::LIVOX;
+        return SensorType::OUSTER;
+    }
+
+    void parseLidarConfigs() {
+        lidar_configs_.clear();
+
+        auto lidar_names = get_param_or<std::vector<std::string>>("lidars", {});
+
+        for (const auto& name : lidar_names) {
+            if (name.empty()) continue;
+            const std::string p = name + ".";
+            LidarConfig cfg;
+            cfg.name           = name;
+            cfg.topic          = get_param_or<std::string>(p + "topic", "");
+            cfg.frame          = get_param_or<std::string>(p + "frame", "");
+            cfg.require        = get_param_or<bool>(p + "require", false);
+            cfg.sensor         = get_param_or<std::string>(p + "sensor", "");
+            cfg.N_SCAN         = get_param_or<int>(p + "N_SCAN", -1);
+            cfg.Horizon_SCAN   = get_param_or<int>(p + "Horizon_SCAN", -1);
+            cfg.downsampleRate = get_param_or<int>(p + "downsampleRate", -1);
+            cfg.lidarMinRange  = get_param_or<double>(p + "lidarMinRange", -1.0);
+            cfg.lidarMaxRange  = get_param_or<double>(p + "lidarMaxRange", -1.0);
+
+            if (cfg.topic.empty() || cfg.frame.empty()) {
+                RCLCPP_ERROR(this->get_logger(),
+                    "\033[1;31m[CONFIG ERROR]\033[0m 光達 '%s' 缺少 topic 或 frame！", name.c_str());
+                continue;
+            }
+            if (!cfg.sensor.empty() && cfg.sensor != "velodyne" && cfg.sensor != "ouster" && cfg.sensor != "livox") {
+                RCLCPP_WARN(this->get_logger(),
+                    "光達 '%s' 的 sensor 類型 '%s' 無效，將沿用全域設定。", name.c_str(), cfg.sensor.c_str());
+                cfg.sensor = "";
+            }
+            lidar_configs_.push_back(cfg);
+        }
+    }
+
+    void parseCameraConfigs() {
+        camera_configs_.clear();
+        imageTopics.clear();
+        cameraInfoTopics.clear();
+        cameraFrameIds.clear();
+
+        auto cam_names = get_param_or<std::vector<std::string>>("cameras", {});
+
+        for (const auto& name : cam_names) {
+            if (name.empty()) continue;
+            const std::string p = name + ".";
+            CameraConfig cfg;
+            cfg.name        = name;
+            cfg.image_topic = get_param_or<std::string>(p + "image_topic", "");
+            cfg.info_topic  = get_param_or<std::string>(p + "info_topic", "");
+            cfg.frame       = get_param_or<std::string>(p + "frame", name);
+
+            if (cfg.image_topic.empty() || cfg.info_topic.empty()) {
+                RCLCPP_WARN(this->get_logger(),
+                    "相機 '%s' 缺少 image_topic 或 info_topic，已跳過。", name.c_str());
+                continue;
+            }
+            camera_configs_.push_back(cfg);
+        }
+
+        for (const auto& cfg : camera_configs_) {
+            imageTopics.push_back(cfg.image_topic);
+            cameraInfoTopics.push_back(cfg.info_topic);
+            cameraFrameIds.push_back(cfg.frame);
+        }
+    }
+
+    template <typename IP_T, typename FE_T>
+    void applyLidarConfig(IP_T& ip, FE_T& fe, const LidarConfig& cfg) {
+        ip.pointCloudTopic = cfg.topic;
+        ip.lidarFrame = cfg.frame;
+        fe.lidarFrame = cfg.frame;
+
+        bool geom_changed = false;
+
+        if (!cfg.sensor.empty()) {
+            ip.sensor = parseSensorType(cfg.sensor);
+            fe.sensor = ip.sensor;
+        }
+        if (cfg.N_SCAN > 0) {
+            ip.N_SCAN = cfg.N_SCAN;
+            fe.N_SCAN = cfg.N_SCAN;
+            geom_changed = true;
+        }
+        if (cfg.Horizon_SCAN > 0) {
+            ip.Horizon_SCAN = cfg.Horizon_SCAN;
+            fe.Horizon_SCAN = cfg.Horizon_SCAN;
+            geom_changed = true;
+        }
+        if (cfg.downsampleRate > 0) {
+            ip.downsampleRate = cfg.downsampleRate;
+            fe.downsampleRate = cfg.downsampleRate;
+        }
+        if (cfg.lidarMinRange >= 0.0) {
+            ip.lidarMinRange = (float)cfg.lidarMinRange;
+            fe.lidarMinRange = (float)cfg.lidarMinRange;
+        }
+        if (cfg.lidarMaxRange > 0.0) {
+            ip.lidarMaxRange = (float)cfg.lidarMaxRange;
+            fe.lidarMaxRange = (float)cfg.lidarMaxRange;
+        }
+
+        if (geom_changed) {
+            ip.allocateMemory();
+            fe.initializationValue();
+        }
+
+        RCLCPP_INFO(this->get_logger(),
+            "光達 [%s] topic=%s frame=%s require=%s sensor=%s N_SCAN=%d Horizon_SCAN=%d range=[%.1f, %.1f]",
+            cfg.name.c_str(), cfg.topic.c_str(), cfg.frame.c_str(),
+            cfg.require ? "true" : "false",
+            cfg.sensor.empty() ? "(global)" : cfg.sensor.c_str(),
+            ip.N_SCAN, ip.Horizon_SCAN,
+            (double)ip.lidarMinRange, (double)ip.lidarMaxRange);
     }
 
     void updateExtrinsics() {

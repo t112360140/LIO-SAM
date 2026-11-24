@@ -194,6 +194,13 @@ public:
 
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
+    
+    bool enableColorization = false;
+    bool saveFullKeyFrame = false;
+    string saveFrameDirectory = "/Downloads/FRAME/";
+    float maxIntensity = 255.0;
+    float minIntensity = 0;
+
     mapOptimization(const rclcpp::NodeOptions & options) : ParamServer("lio_sam_mapOptimization", options)
     {
         ISAM2Params parameters;

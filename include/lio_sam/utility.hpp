@@ -296,27 +296,6 @@ public:
     float globalMapVisualizationPoseDensity;
     float globalMapVisualizationLeafSize;
 
-    // offline
-    bool loopClosureThread;
-    float logInterval;
-    bool enable_web;
-    float maxIntensity;
-    float minIntensity;
-    
-    bool saveFullKeyFrame;
-    string saveFrameDirectory;
-
-    // pointColorization
-    bool enableColorization;
-    bool useCudaColorization;
-    bool useCompressedImages;
-    float lidarColorMaxRange;
-    vector<string> imageTopics;
-    vector<string> cameraInfoTopics;
-    vector<string> cameraFrameIds;
-    float cameraDelay;
-    float cameraSyncDelayWindow;
-
     bool useScanContext;
     double scDistThres;
 
@@ -489,45 +468,6 @@ public:
         get_parameter("globalMapVisualizationPoseDensity", globalMapVisualizationPoseDensity);
         declare_parameter("globalMapVisualizationLeafSize", 1.0);
         get_parameter("globalMapVisualizationLeafSize", globalMapVisualizationLeafSize);
-
-        declare_parameter("loopClosureThread", true);
-        get_parameter("loopClosureThread", loopClosureThread);
-        declare_parameter("logInterval", 5.0);
-        get_parameter("logInterval", logInterval);
-        
-        declare_parameter("enable_web", false);
-        get_parameter("enable_web", enable_web);
-        declare_parameter("maxIntensity", 255.0);
-        get_parameter("maxIntensity", maxIntensity);
-        declare_parameter("minIntensity", 0.0);
-        get_parameter("minIntensity", minIntensity);
-
-        declare_parameter("saveFullKeyFrame", false);
-        get_parameter("saveFullKeyFrame", saveFullKeyFrame);
-        declare_parameter("saveFrameDirectory", "/Downloads/FRAME/");
-        get_parameter("saveFrameDirectory", saveFrameDirectory);
-
-        declare_parameter("enableColorization", false);
-        get_parameter("enableColorization", enableColorization);
-        declare_parameter("useCudaColorization", false);
-        get_parameter("useCudaColorization", useCudaColorization);
-        declare_parameter("useCompressedImages", false);
-        get_parameter("useCompressedImages", useCompressedImages);
-
-        declare_parameter("lidarColorMaxRange", 100.0);
-        get_parameter("lidarColorMaxRange", lidarColorMaxRange);
-        
-        declare_parameter("imageTopics", std::vector<std::string>());
-        get_parameter("imageTopics", imageTopics);
-        declare_parameter("cameraInfoTopics", std::vector<std::string>());
-        get_parameter("cameraInfoTopics", cameraInfoTopics);
-        declare_parameter("cameraFrameIds", std::vector<std::string>());
-        get_parameter("cameraFrameIds", cameraFrameIds);
-
-        declare_parameter("cameraDelay", 0.0);
-        get_parameter("cameraDelay", cameraDelay);
-        declare_parameter("cameraSyncDelayWindow", 0.06);
-        get_parameter("cameraSyncDelayWindow", cameraSyncDelayWindow);
 
         declare_parameter("useScanContext", false);
         get_parameter("useScanContext", useScanContext);
